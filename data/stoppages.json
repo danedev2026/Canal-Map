@@ -1,45 +1,5 @@
 {
-  "updated": "2026-07-21T06:00:00Z",
-  "source": "SAMPLE fixture (not live CRT data)",
-  "stoppages": [
-    {
-      "id": "sample-001",
-      "title": "Lock gate replacement",
-      "type": "Navigation Closure",
-      "reason": "Repair",
-      "waterway": "Grand Union Canal",
-      "state": "closed",
-      "start": "2026-07-20",
-      "end": "2026-07-31",
-      "lat": 51.510123,
-      "lon": -0.470927,
-      "url": "https://canalrivertrust.org.uk/notices"
-    },
-    {
-      "id": "sample-002",
-      "title": "Reduced headroom under bridge during works",
-      "type": "Navigation Restriction",
-      "reason": "Maintenance",
-      "waterway": "Grand Union Canal (Paddington Arm)",
-      "state": "restricted",
-      "start": "2026-07-18",
-      "end": "2026-08-10",
-      "lat": 51.547903,
-      "lon": -0.34474,
-      "url": "https://canalrivertrust.org.uk/notices"
-    },
-    {
-      "id": "sample-003",
-      "title": "Strong stream advice \u2014 check conditions before travel",
-      "type": "Advice",
-      "reason": "Vegetation",
-      "waterway": "River Thames",
-      "state": "advisory",
-      "start": "2026-07-21",
-      "end": "2026-07-25",
-      "lat": 51.477451,
-      "lon": -0.581414,
-      "url": "https://canalrivertrust.org.uk/notices"
-    }
-  ]
+  "updated": "2026-07-21T23:56:00Z",
+  "source": "Canal & River Trust notices",
+  "stoppages": []
 }
