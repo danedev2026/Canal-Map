@@ -1,0 +1,47 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import shapely, pyproj; print\\('shapely', shapely.__version__, 'pyproj', pyproj.__version__\\)\")",
+      "Bash(python -c \"import requests\")",
+      "Bash(python -m pip install --quiet requests shapely pyproj geojson)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(python -c \"import requests, shapely, pyproj, geojson; print\\('requests',requests.__version__,'| shapely',shapely.__version__,'| pyproj',pyproj.__version__\\)\")",
+      "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(python -m pip list)",
+      "Bash(./.venv/Scripts/python.exe -c \"import requests,shapely,pyproj,geojson; print\\('imports OK'\\)\")",
+      "Bash(./.venv/Scripts/python.exe -c ' *)",
+      "Bash(docker --version)",
+      "Bash(wsl --status)",
+      "WebFetch(domain:data-canalrivertrust.opendata.arcgis.com)",
+      "WebSearch",
+      "Bash(./.venv/Scripts/python.exe phase1_pipeline.py)",
+      "Bash(flutter --version)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(dart --version)",
+      "Read(//c/Users/danem/AppData/Local/Android/Sdk/**)",
+      "Bash(java -version)",
+      "Bash(git --version)",
+      "Read(//c/Users/danem/**)",
+      "Read(//c/src/**)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(gh --version)",
+      "Bash(gh api *)",
+      "Bash(cd \"c:/Users/danem/Documents/Canal Map\" && sed -n '/pmtiles_style.json =====/,$p' \"C:\\\\Users\\\\danem\\\\.claude\\\\projects\\\\c--Users-danem-Documents-Canal-Map\\\\86e4fc04-68d2-4ea8-ab5b-69329568ae6b\\\\tool-results\\\\b6u8f9xto.txt\" | head -80)",
+      "Bash('C:\\\\Users\\\\danem/flutter/bin/flutter' devices *)",
+      "Bash('C:\\\\Users\\\\danem/AppData/Local/Android/Sdk/platform-tools/adb' devices *)",
+      "Bash('C:\\\\Users\\\\danem/flutter/bin/flutter' emulators *)",
+      "Bash('C:\\\\Users\\\\danem/AppData/Local/Android/Sdk/platform-tools/adb' shell *)",
+      "Bash('C:\\\\Users\\\\danem/AppData/Local/Android/Sdk/platform-tools/adb' wait-for-device *)",
+      "Bash('C:\\\\Users\\\\danem/AppData/Local/Android/Sdk/platform-tools/adb' install *)",
+      "Bash(bash -c 'f=\"C:/Users/danem/AppData/Local/Temp/claude/c--Users-danem-Documents-Canal-Map/86e4fc04-68d2-4ea8-ab5b-69329568ae6b/tasks/bd1fi79xv.output\"; while ! grep -q DONE \"$f\" 2>/dev/null; do :; done; echo ready')",
+      "Bash(bash -c 'f=\"C:/Users/danem/AppData/Local/Temp/claude/c--Users-danem-Documents-Canal-Map/86e4fc04-68d2-4ea8-ab5b-69329568ae6b/tasks/b233dw844.output\"; while ! grep -q DONE \"$f\" 2>/dev/null; do :; done; echo ready')",
+      "Bash('C:\\\\Users\\\\danem/AppData/Local/Android/Sdk/platform-tools/adb' get-state *)",
+      "Bash(tasklist)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\danem\\.claude\\projects\\c--Users-danem-Documents-Canal-Map\\86e4fc04-68d2-4ea8-ab5b-69329568ae6b\\tool-results"
+    ]
+  }
+}

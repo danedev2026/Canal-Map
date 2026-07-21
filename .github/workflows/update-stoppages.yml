@@ -1,0 +1,40 @@
+name: Update stoppages
+
+# Bucket 2 producer. Runs daily, rebuilds data/stoppages.json from CRT notices,
+# and commits it so it is served as a static file (£0 — no server). The app
+# fetches it with offline fallback, so a failed run never breaks the map.
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 06:00 UTC daily
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+permissions:
+  contents: write # needed to commit the refreshed file back
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install requests
+
+      - name: Build stoppages.json
+        run: python build_stoppages.py --iso "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- data/stoppages.json; then
+            git add data/stoppages.json
+            git commit -m "chore: refresh stoppages.json"
+            git push
+          else
+            echo "No change in stoppages.json"
+          fi
