@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -8,6 +10,8 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'attribution.dart';
+import 'routing.dart';
 import 'stoppages.dart';
 
 void main() => runApp(const CanalMapApp());
@@ -15,24 +19,22 @@ void main() => runApp(const CanalMapApp());
 /// Single source of truth for POI types: drives the map circle colours, the
 /// legend, and the tap info-sheet so they can never drift apart.
 class PoiType {
-  const PoiType(this.label, this.color);
+  const PoiType(this.label, this.color, this.icon);
   final String label;
   final Color color;
+  final IconData icon;
 }
 
 const Map<String, PoiType> kPoiTypes = {
-  'lock': PoiType('Lock', Color(0xFFC0392B)),
-  'water_point': PoiType('Water point', Color(0xFF2980B9)),
-  'sanitary': PoiType('Elsan / sanitary', Color(0xFF27AE60)),
-  'pumpout': PoiType('Pump-out', Color(0xFF8E44AD)),
-  'refuse': PoiType('Refuse disposal', Color(0xFF7F8C8D)),
-  'pub': PoiType('Pub', Color(0xFFE67E22)),
+  'lock': PoiType('Lock', Color(0xFFC0392B), Icons.lock),
+  'water_point': PoiType('Water point', Color(0xFF2980B9), Icons.water_drop),
+  'sanitary': PoiType('Elsan / sanitary', Color(0xFF27AE60), Icons.wc),
+  'pumpout': PoiType('Pump-out', Color(0xFF8E44AD), Icons.plumbing),
+  'refuse': PoiType('Refuse disposal', Color(0xFF7F8C8D), Icons.delete),
+  'pub': PoiType('Pub', Color(0xFFE67E22), Icons.sports_bar),
 };
 
 const _defaultPoiColor = Color(0xFF555555);
-
-String _hex(Color c) =>
-    '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
 
 class CanalMapApp extends StatelessWidget {
   const CanalMapApp({super.key});
@@ -86,6 +88,15 @@ class _MapScreenState extends State<MapScreen> {
   List<Stoppage> _stoppages = const [];
   String? _stoppagesFreshness;
 
+  // Routing (v1.1). Graph loaded lazily the first time route mode is used.
+  RouteGraph? _graph;
+  bool _routeMode = false;
+  bool _routing = false;
+  LatLng? _routeStart;
+  LatLng? _routeEnd;
+  RouteResult? _route;
+  String? _routeError;
+
   @override
   void initState() {
     super.initState();
@@ -122,14 +133,6 @@ class _MapScreenState extends State<MapScreen> {
     } catch (e) {
       setState(() => _error = '$e');
     }
-  }
-
-  /// MapLibre `match` expression colouring feature circles by their `type`.
-  String _circleColorExpr() {
-    final buf = StringBuffer('["match", ["get", "type"]');
-    kPoiTypes.forEach((key, v) => buf.write(', "$key", "${_hex(v.color)}"'));
-    buf.write(', "${_hex(_defaultPoiColor)}"]');
-    return buf.toString();
   }
 
   /// MapLibre style referencing the local PMTiles via the pmtiles:// protocol.
@@ -173,21 +176,21 @@ class _MapScreenState extends State<MapScreen> {
       }
     },
     {
-      "id": "$_featuresLayerId",
-      "type": "circle",
+      "id": "tidal",
+      "type": "line",
       "source": "canal",
-      "source-layer": "features",
+      "source-layer": "network",
+      "filter": ["==", ["get", "tidal"], 1],
+      "layout": { "line-cap": "butt", "line-join": "round" },
       "paint": {
-        "circle-radius": [
+        "line-color": "#e65100",
+        "line-width": [
           "interpolate", ["linear"], ["zoom"],
-          9, 3,
-          13, 5.5,
-          16, 8
+          6, 1.0,
+          11, 2.6,
+          16, 6.0
         ],
-        "circle-color": ${_circleColorExpr()},
-        "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": 1.5,
-        "circle-opacity": 0.95
+        "line-dasharray": [2, 2]
       }
     }
   ]
@@ -213,6 +216,8 @@ class _MapScreenState extends State<MapScreen> {
 
     final controller = _controller;
     if (controller == null) return;
+
+    await _addPoiLayer(controller);
     await controller.addGeoJsonSource(_stoppagesSourceId, result.data.toGeoJson());
     await controller.addCircleLayer(
       _stoppagesSourceId,
@@ -232,6 +237,89 @@ class _MapScreenState extends State<MapScreen> {
         circleStrokeWidth: 2.5,
         circleOpacity: 0.9,
       ),
+    );
+
+    // Empty route layers, updated on demand when a route is computed.
+    await controller.addGeoJsonSource('route', _emptyFc());
+    await controller.addLineLayer(
+      'route', 'route-line',
+      const LineLayerProperties(
+        lineColor: '#6a1b9a',
+        lineWidth: 5.0,
+        lineOpacity: 0.85,
+        lineCap: 'round',
+        lineJoin: 'round',
+      ),
+    );
+    await controller.addGeoJsonSource('route-ends', _emptyFc());
+    await controller.addCircleLayer(
+      'route-ends', 'route-ends-layer',
+      CircleLayerProperties(
+        circleRadius: 8.0,
+        circleColor: [
+          'match', ['get', 'role'], 'start', '#2e7d32', 'end', '#c62828', '#000000',
+        ],
+        circleStrokeColor: '#ffffff',
+        circleStrokeWidth: 2.5,
+      ),
+    );
+  }
+
+  Map<String, dynamic> _emptyFc() => {'type': 'FeatureCollection', 'features': []};
+
+  /// Render a Material icon glyph to a PNG (white disc + coloured ring + glyph)
+  /// so POIs read clearly on the map — no bundled image assets needed.
+  Future<Uint8List> _renderIcon(IconData icon, Color color, {int px = 88}) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final c = px / 2.0;
+    canvas.drawCircle(Offset(c, c), c - 4, Paint()..color = Colors.white);
+    canvas.drawCircle(
+      Offset(c, c), c - 4,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = px * 0.06,
+    );
+    final tp = TextPainter(textDirection: TextDirection.ltr);
+    tp.text = TextSpan(
+      text: String.fromCharCode(icon.codePoint),
+      style: TextStyle(
+        fontSize: px * 0.5,
+        fontFamily: icon.fontFamily,
+        package: icon.fontPackage,
+        color: color,
+      ),
+    );
+    tp.layout();
+    tp.paint(canvas, Offset(c - tp.width / 2, c - tp.height / 2));
+    final img = await recorder.endRecording().toImage(px, px);
+    final data = await img.toByteData(format: ui.ImageByteFormat.png);
+    return data!.buffer.asUint8List();
+  }
+
+  /// Register a rendered icon per POI type, then a symbol layer keyed by `type`.
+  /// Collision detection (iconAllowOverlap:false) declutters at low zoom.
+  Future<void> _addPoiLayer(MapLibreMapController controller) async {
+    for (final e in kPoiTypes.entries) {
+      await controller.addImage('poi_${e.key}', await _renderIcon(e.value.icon, e.value.color));
+    }
+    await controller.addImage('poi_default', await _renderIcon(Icons.place, _defaultPoiColor));
+
+    final iconMatch = <dynamic>['match', ['get', 'type']];
+    for (final k in kPoiTypes.keys) {
+      iconMatch..add(k)..add('poi_$k');
+    }
+    iconMatch.add('poi_default');
+
+    await controller.addSymbolLayer(
+      'canal', _featuresLayerId,
+      SymbolLayerProperties(
+        iconImage: iconMatch,
+        iconSize: ['interpolate', ['linear'], ['zoom'], 8, 0.28, 13, 0.45, 16, 0.62],
+        iconAllowOverlap: false,
+      ),
+      sourceLayer: 'features',
     );
   }
 
@@ -268,6 +356,99 @@ class _MapScreenState extends State<MapScreen> {
     if (mounted) setState(() => _tracking = MyLocationTrackingMode.none);
   }
 
+  // --- Routing (v1.1) -------------------------------------------------------
+
+  Future<void> _toggleRouteMode() async {
+    if (_routeMode) {
+      await _exitRouteMode();
+      return;
+    }
+    setState(() {
+      _routeMode = true;
+      _routeError = null;
+    });
+    _graph ??= await RouteGraph.load('assets/routing.graph');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        duration: Duration(seconds: 2),
+        content: Text('Tap a start point, then a destination'),
+      ));
+    }
+  }
+
+  Future<void> _exitRouteMode() async {
+    setState(() {
+      _routeMode = false;
+      _routeStart = null;
+      _routeEnd = null;
+      _route = null;
+      _routeError = null;
+    });
+    await _controller?.setGeoJsonSource('route', _emptyFc());
+    await _controller?.setGeoJsonSource('route-ends', _emptyFc());
+  }
+
+  Future<void> _handleRouteTap(LatLng p) async {
+    if (_routeStart == null || _route != null || _routeError != null) {
+      // Start fresh: first tap (or a tap after a completed route) sets start.
+      setState(() {
+        _routeStart = p;
+        _routeEnd = null;
+        _route = null;
+        _routeError = null;
+      });
+      await _drawRouteEnds();
+      return;
+    }
+    // Second tap sets the destination and computes.
+    setState(() {
+      _routeEnd = p;
+      _routing = true;
+    });
+    await _drawRouteEnds();
+
+    final graph = _graph;
+    final result = graph?.route(_routeStart!, _routeEnd!);
+    if (!mounted) return;
+    setState(() {
+      _route = result;
+      _routeError = result == null ? 'No through route found' : null;
+      _routing = false;
+    });
+    await _controller?.setGeoJsonSource('route', {
+      'type': 'FeatureCollection',
+      'features': result == null
+          ? []
+          : [
+              {
+                'type': 'Feature',
+                'geometry': {
+                  'type': 'LineString',
+                  'coordinates':
+                      result.polyline.map((p) => [p.longitude, p.latitude]).toList(),
+                },
+              }
+            ],
+    });
+  }
+
+  Future<void> _drawRouteEnds() async {
+    final feats = <Map<String, dynamic>>[];
+    void add(LatLng? p, String role) {
+      if (p == null) return;
+      feats.add({
+        'type': 'Feature',
+        'geometry': {'type': 'Point', 'coordinates': [p.longitude, p.latitude]},
+        'properties': {'role': role},
+      });
+    }
+
+    add(_routeStart, 'start');
+    add(_routeEnd, 'end');
+    await _controller?.setGeoJsonSource(
+        'route-ends', {'type': 'FeatureCollection', 'features': feats});
+  }
+
   Future<void> _openSearch() async {
     // "Near me" needs the current position; null if location isn't on yet.
     final here = _locationEnabled
@@ -293,6 +474,11 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _onMapClick(math.Point<double> point, LatLng latLng) async {
     final controller = _controller;
     if (controller == null) return;
+
+    if (_routeMode) {
+      await _handleRouteTap(latLng);
+      return;
+    }
 
     const pad = 22.0;
     final rect = Rect.fromLTRB(
@@ -476,7 +662,26 @@ class _MapScreenState extends State<MapScreen> {
       );
     }
     if (_styleJson == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: const Color(0xFFeef3f6),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.directions_boat,
+                  size: 56, color: Color(0xFF2A6FB0)),
+              const SizedBox(height: 16),
+              Text('Canal Map', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 8),
+              Text('Preparing offline map…',
+                  style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height: 24),
+              const SizedBox(
+                  width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 3)),
+            ],
+          ),
+        ),
+      );
     }
     final following = _tracking != MyLocationTrackingMode.none;
     return Scaffold(
@@ -488,12 +693,34 @@ class _MapScreenState extends State<MapScreen> {
             tooltip: 'Search places & waterways',
             onPressed: _searchEntries.isEmpty ? null : _openSearch,
           ),
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'About & data sources',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AttributionScreen()),
+            ),
+          ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _followMe,
-        tooltip: 'My location',
-        child: Icon(following ? Icons.my_location : Icons.location_searching),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'route',
+            onPressed: _toggleRouteMode,
+            tooltip: 'Plan a route',
+            backgroundColor: _routeMode ? const Color(0xFF6A1B9A) : null,
+            foregroundColor: _routeMode ? Colors.white : null,
+            child: Icon(_routeMode ? Icons.close : Icons.directions_boat),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton(
+            heroTag: 'loc',
+            onPressed: _followMe,
+            tooltip: 'My location',
+            child: Icon(following ? Icons.my_location : Icons.location_searching),
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -519,6 +746,16 @@ class _MapScreenState extends State<MapScreen> {
                   label: _stoppagesFreshness!,
                   count: _stoppages.length,
                 ),
+              ),
+            ),
+          if (_routeMode)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: _RoutePanel(
+                routing: _routing,
+                route: _route,
+                error: _routeError,
+                hasStart: _routeStart != null,
               ),
             ),
         ],
@@ -657,6 +894,103 @@ class _Hint extends StatelessWidget {
       );
 }
 
+class _RoutePanel extends StatelessWidget {
+  const _RoutePanel({
+    required this.routing,
+    required this.route,
+    required this.error,
+    required this.hasStart,
+  });
+
+  final bool routing;
+  final RouteResult? route;
+  final String? error;
+  final bool hasStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget body;
+    if (routing) {
+      body = const Row(mainAxisSize: MainAxisSize.min, children: [
+        SizedBox(
+            width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+        SizedBox(width: 12),
+        Text('Finding route…'),
+      ]);
+    } else if (error != null) {
+      body = Text(error!, style: const TextStyle(color: Color(0xFFC62828)));
+    } else if (route != null) {
+      final h = route!.eta.inHours;
+      final m = route!.eta.inMinutes % 60;
+      final eta = h > 0 ? '${h}h ${m}m' : '${m}m';
+      body = Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _stat(context, '${route!.miles.toStringAsFixed(1)} mi', 'distance'),
+          _stat(context, '${route!.locks}', 'locks'),
+          _stat(context, eta, 'approx time'),
+        ],
+      );
+    } else {
+      body = Text(hasStart ? 'Tap a destination' : 'Tap a start point',
+          style: Theme.of(context).textTheme.bodyMedium);
+    }
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Card(
+          elevation: 4,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: body,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _stat(BuildContext context, String value, String label) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(value, style: Theme.of(context).textTheme.titleLarge),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      );
+}
+
+class _DashSwatch extends StatelessWidget {
+  const _DashSwatch({required this.color});
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) =>
+      CustomPaint(size: const Size(15, 3), painter: _DashPainter(color));
+}
+
+class _DashPainter extends CustomPainter {
+  const _DashPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = color
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.butt;
+    const dash = 4.0, gap = 3.0;
+    var x = 0.0;
+    final y = size.height / 2;
+    while (x < size.width) {
+      canvas.drawLine(Offset(x, y), Offset(math.min(x + dash, size.width), y), p);
+      x += dash + gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashPainter old) => old.color != color;
+}
+
 class _FreshnessChip extends StatelessWidget {
   const _FreshnessChip({required this.label, required this.count});
   final String label;
@@ -721,21 +1055,25 @@ class _Legend extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 11,
-                        height: 11,
-                        decoration: BoxDecoration(
-                          color: e.value.color,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 1.2),
-                        ),
-                      ),
+                      Icon(e.value.icon, size: 15, color: e.value.color),
                       const SizedBox(width: 7),
                       Text(e.value.label,
                           style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),
                 ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const _DashSwatch(color: Color(0xFFE65100)),
+                    const SizedBox(width: 7),
+                    Text('Tidal — hazard',
+                        style: Theme.of(context).textTheme.bodySmall),
+                  ],
+                ),
+              ),
             ],
           ),
         ),

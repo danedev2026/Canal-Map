@@ -207,6 +207,30 @@ def fetch_network():
     return canals + rivers
 
 
+def fetch_tidal_ids():
+    """OSM way ids tagged tidal=yes — used to flag hazardous tidal sections."""
+    preamble, sel = _region()
+    query = f"""
+    [out:json][timeout:300];
+    {preamble}
+    (way["waterway"]["tidal"="yes"]{sel};);
+    out ids;
+    """
+    data = overpass_query(query)
+    return {el["id"] for el in data.get("elements", []) if el["type"] == "way"}
+
+
+def mark_tidal(network, tidal_ids):
+    """Flag network features whose OSM way is tidal (navigable but hazardous —
+    need prep/licences/timing; the app styles them distinctly)."""
+    n = 0
+    for f in network:
+        if f["properties"].get("osm_id") in tidal_ids:
+            f["properties"]["tidal"] = 1
+            n += 1
+    return n
+
+
 # --- 2. Feature points ------------------------------------------------
 # Locks, water points, sanitary/Elsan, pump-out, moorings, boatyards, pubs.
 
@@ -372,6 +396,8 @@ if __name__ == "__main__":
     os.makedirs(DATA_DIR, exist_ok=True)
 
     network = fetch_network()
+    n_tidal = mark_tidal(network, fetch_tidal_ids())
+    print(f"  tidal ways flagged: {n_tidal}")
     write_geojson("data/network.geojson", network)
 
     features = fetch_osm_features() + fetch_crt_facilities()
