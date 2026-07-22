@@ -56,9 +56,10 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  // Centre of the current (West London) data slice: Grand Union + Thames.
+  // Opens on the Midlands canal heartland (Birmingham) — the densest part of
+  // the nationwide network. Users pan/search from here.
   static const _initialCamera =
-      CameraPosition(target: LatLng(51.52, -0.25), zoom: 12);
+      CameraPosition(target: LatLng(52.48, -1.90), zoom: 9);
 
   static const _featuresLayerId = 'features';
   static const _stoppagesLayerId = 'stoppages-layer';

@@ -111,8 +111,24 @@ def build(layer_paths, out_path, minzoom=6, maxzoom=16):
     writer = Writer(writer_file)
 
     for z in range(minzoom, maxzoom + 1):
-        tiles = {}  # (x, y) -> {layer: [features]}
+        # Simplify lines to ~1.5px at this zoom before tiling: fewer vertices →
+        # smaller tiles and far less intersection work at low zoom. Points are
+        # left untouched. This is what keeps a nationwide build tractable.
+        tol = 360.0 / (2 ** z) / TILE_EXTENT * 1.5  # degrees ≈ 1.5px
+        zlayers = {}
         for lname, feats in layers.items():
+            simplified = []
+            for geom, props in feats:
+                g = geom
+                if geom.geom_type in ("LineString", "MultiLineString"):
+                    g = geom.simplify(tol, preserve_topology=False)
+                    if g.is_empty:
+                        continue
+                simplified.append((g, props))
+            zlayers[lname] = simplified
+
+        tiles = {}  # (x, y) -> {layer: [features]}
+        for lname, feats in zlayers.items():
             for geom, props in feats:
                 for (tx, ty) in covering_tiles(geom, z):
                     clip = box(*tile_bounds(z, tx, ty)).buffer(0.0005)

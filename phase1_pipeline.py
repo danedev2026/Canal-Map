@@ -15,6 +15,7 @@ import time
 import requests
 from shapely.geometry import shape, mapping
 from shapely.ops import unary_union, transform
+from shapely.prepared import prep
 from pyproj import Transformer
 
 # --- Config -----------------------------------------------------------
@@ -44,7 +45,13 @@ def overpass_query(query, retries=4):
                     last_error = f"HTTP {r.status_code} from {url}"
                     continue
                 r.raise_for_status()
-                return r.json()
+                data = r.json()
+                # A server-side timeout/runtime error comes back as HTTP 200
+                # with a "remark" and no elements — retry it on another mirror.
+                if not data.get("elements") and data.get("remark"):
+                    last_error = f"remark from {url}: {data['remark'][:80]}"
+                    continue
+                return data
             except requests.RequestException as exc:
                 last_error = f"{type(exc).__name__} from {url}: {exc}"
                 continue
@@ -77,11 +84,10 @@ CRT_SERVICE_TYPES = {
     "refuse_disposal": "refuse",
 }
 
-# Small-slice test area. Set to a (south, west, north, east) WGS84 bbox to
-# iterate fast on ONE region end-to-end; set to None to run nationwide.
-# Default below ~ West London: Grand Union canals + the tidal/non-tidal
-# Thames through the capital — a good mixed canal+river slice to validate on.
-SMALL_SLICE = (51.30, -0.60, 51.75, 0.10)
+# Scope. None = nationwide (the shipped default). Set to a
+# (south, west, north, east) WGS84 bbox to iterate fast on ONE region instead
+# — e.g. West London (Grand Union + Thames): (51.30, -0.60, 51.75, 0.10).
+SMALL_SLICE = None
 
 # British National Grid for metric buffering, then back to WGS84
 to_bng = Transformer.from_crs("EPSG:4326", "EPSG:27700", always_xy=True).transform
@@ -173,21 +179,32 @@ def osm_nodes_to_points(overpass_json):
 # --- 1. Network geometry from OSM (canals + whitelisted rivers) --------
 
 def fetch_network():
-    # canals in scope, plus only the named navigable rivers
+    # Canals and the named navigable rivers are fetched as SEPARATE queries.
+    # Nationwide, combining them (canals + 7 named-river lookups over all GB)
+    # overruns Overpass's server timeout and returns an empty remark.
     preamble, sel = _region()
+
+    canal_query = f"""
+    [out:json][timeout:600];
+    {preamble}
+    (way["waterway"="canal"]{sel};);
+    out geom;
+    """
+    canals = osm_ways_to_lines(overpass_query(canal_query))
+
     river_filter = "".join(
         f'way["waterway"="river"]["name"="{name}"]{sel};' for name in NAVIGABLE_RIVERS
     )
-    query = f"""
-    [out:json][timeout:180];
+    river_query = f"""
+    [out:json][timeout:600];
     {preamble}
-    (
-      way["waterway"="canal"]{sel};
-      {river_filter}
-    );
+    ({river_filter});
     out geom;
     """
-    return osm_ways_to_lines(overpass_query(query))
+    rivers = osm_ways_to_lines(overpass_query(river_query))
+
+    print(f"  network: {len(canals)} canal ways + {len(rivers)} river ways")
+    return canals + rivers
 
 
 # --- 2. Feature points ------------------------------------------------
@@ -198,7 +215,7 @@ def fetch_osm_features():
     # so it's the unified base layer.
     preamble, sel = _region()
     query = f"""
-    [out:json][timeout:180];
+    [out:json][timeout:600];
     {preamble}
     (
       node["waterway"="lock_gate"]{sel};
@@ -267,7 +284,10 @@ def clip_to_network(points, network_lines):
     net = unary_union([shape(l["geometry"]) for l in network_lines])
     net_bng = transform(to_bng, net)
     buf = transform(to_wgs, net_bng.buffer(BUFFER_METRES))
-    return [p for p in points if shape(p["geometry"]).within(buf)]
+    # Prepared geometry: fast repeated point-in-polygon over many points
+    # (nationwide clips ~50k GB pubs against one big buffer).
+    pbuf = prep(buf)
+    return [p for p in points if pbuf.contains(shape(p["geometry"]))]
 
 
 # --- 4. Write outputs + build PMTiles ---------------------------------
