@@ -1,5 +1,5 @@
 {
-  "updated": "2026-07-22T01:07:43Z",
+  "updated": "2026-07-22T08:31:09Z",
   "source": "Canal & River Trust notices",
   "stoppages": [
     {
@@ -1706,19 +1706,6 @@
       "url": "https://canalrivertrust.org.uk/notices/019f6b00-4240-7422-8819-0fdc93fbc2f8"
     },
     {
-      "id": "019f6ad5-27d1-77e9-b86b-56b6d76d6b82",
-      "title": "Between Muscott Mill Bridge 18 and Smiths Bridge 16 ",
-      "type": "Navigation Restriction",
-      "reason": "Vegetation",
-      "waterway": "Grand Union Canal",
-      "state": "restricted",
-      "start": "2026-07-16T12:30:00+00:00",
-      "end": null,
-      "lat": 52.2679,
-      "lon": -1.0934,
-      "url": "https://canalrivertrust.org.uk/notices/019f6ad5-27d1-77e9-b86b-56b6d76d6b82"
-    },
-    {
       "id": "019f6624-5abe-7083-a905-7b29c48e561e",
       "title": "Dean Lock 90B",
       "type": "Navigation Restriction",
@@ -1743,19 +1730,6 @@
       "lat": 51.7368,
       "lon": -2.4487,
       "url": "https://canalrivertrust.org.uk/notices/019f65f7-b9b1-7a7e-af6c-6a317415f019"
-    },
-    {
-      "id": "019f65d9-e040-76bf-9538-f6e90edd5685",
-      "title": "Closed - Sprotbrough Lock",
-      "type": "Navigation Restriction",
-      "reason": "Repair",
-      "waterway": "Sheffield & South Yorkshire Nav",
-      "state": "restricted",
-      "start": "2026-07-15T13:03:00+00:00",
-      "end": null,
-      "lat": 53.5089,
-      "lon": -1.188,
-      "url": "https://canalrivertrust.org.uk/notices/019f65d9-e040-76bf-9538-f6e90edd5685"
     },
     {
       "id": "019f65d8-f810-782f-aedf-ccad6eca5283",
