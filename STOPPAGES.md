@@ -21,30 +21,32 @@ GitHub Action (daily cron)
    *Run workflow*). It rebuilds `data/stoppages.json` and commits it.
    - It needs write permission: repo **Settings → Actions → General →
      Workflow permissions → Read and write permissions**.
-3. **Point the app at the file.** In [app/lib/main.dart](app/lib/main.dart) set:
+3. **Point the app at the file** — already wired in [app/lib/main.dart](app/lib/main.dart):
    ```dart
    static const String _stoppagesUrl =
-       'https://raw.githubusercontent.com/<you>/<repo>/main/data/stoppages.json';
+       'https://raw.githubusercontent.com/danedev2026/Canal-Map/main/data/stoppages.json';
    ```
-   (While this is empty, the app just uses the bundled/cached copy — still
-   fully works, shown as "· offline".)
+
+**Ordering matters:** run the Action **once** (Actions tab → Run workflow) so
+the hosted `data/stoppages.json` holds real notices *before* you ship a build
+with the URL set. An empty hosted file is a valid 200 and would show "0
+notices" until the Action populates it. The bundled snapshot covers offline.
 
 That's it — £0, no server, no database.
 
-## The one unfinished piece
+## The CRT source (done)
 
-`fetch_crt_notices()` in [build_stoppages.py](build_stoppages.py) currently
-returns an empty list. CRT have **no clean public notices API** — the notices
-load via an undocumented client-side request, and give locations by *name*,
-not coordinates. To finish it:
+`fetch_crt_notices()` in [build_stoppages.py](build_stoppages.py) calls CRT's
+own notices API, reverse-engineered from their React app:
 
-1. Open <https://canalrivertrust.org.uk/notices> with browser devtools →
-   **Network**, and find the request that returns the notice list.
-2. Reproduce that request in `fetch_crt_notices()`, mapping each notice to
-   `{id, title, type, reason, waterway, start, end}`.
-3. `build_stoppages.py` already geocodes by waterway name (via
-   `app/assets/search_index.json`) and classifies `state` — no other change
-   needed. The `stoppages.json` schema is the stable contract.
+```
+GET /api/stoppage/notices?geometry=point&consult=false&start=<today>&end=<+120d>&fields=...
+Header: X-Requested-With: XMLHttpRequest   # required, else HTTP 500
+```
 
-Until then, `data/stoppages.json` is seeded with a small **sample** (3 notices
-on real in-slice waterways) so the overlay is demoable end-to-end.
+It returns a **GeoJSON FeatureCollection** — notices already carry coordinates
+(no geocoding needed). We keep `state == "Published"` notices, map `typeId` →
+marker state (closed / restricted / advisory), drop towpath-only types, and
+name `typeId`/`reasonId` via CRT's lookup tables. Typically ~340 nationwide
+navigation notices. The bundled `assets/stoppages.json` is a real snapshot for
+offline first-run.

@@ -65,10 +65,11 @@ class _MapScreenState extends State<MapScreen> {
   static const _stoppagesLayerId = 'stoppages-layer';
   static const _stoppagesSourceId = 'stoppages';
 
-  // Bucket 2: the ONLY networked file. Empty until static hosting is set up;
-  // while empty the app just uses the bundled/cached copy (still fully works).
-  // Once hosting exists, set this to the raw stoppages.json URL.
-  static const String _stoppagesUrl = '';
+  // Bucket 2: the ONLY networked file — the live CRT stoppages feed, produced
+  // daily by the GitHub Action. Fetched with offline fallback to the bundled
+  // snapshot, so the map always works.
+  static const String _stoppagesUrl =
+      'https://raw.githubusercontent.com/danedev2026/Canal-Map/main/data/stoppages.json';
 
   MapLibreMapController? _controller;
   String? _styleJson;
