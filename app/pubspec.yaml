@@ -66,6 +66,7 @@ flutter:
     - assets/search_index.json
     - assets/stoppages.json
     - assets/routing.graph
+    - assets/glyphs/OpenSans-Regular/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

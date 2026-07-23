@@ -121,6 +121,8 @@ class _MapScreenState extends State<MapScreen> {
         );
       }
 
+      final glyphsPath = await _prepareGlyphs(dir);
+
       final indexRaw = await rootBundle.loadString('assets/search_index.json');
       final entries = (jsonDecode(indexRaw) as List)
           .map((e) => SearchEntry.fromJson(e as Map<String, dynamic>))
@@ -128,19 +130,37 @@ class _MapScreenState extends State<MapScreen> {
 
       setState(() {
         _searchEntries = entries;
-        _styleJson = _buildStyle(dest.path);
+        _styleJson = _buildStyle(dest.path, glyphsPath);
       });
     } catch (e) {
       setState(() => _error = '$e');
     }
   }
 
+  /// Copy the bundled font glyphs into app storage so MapLibre can render text
+  /// labels entirely offline (no glyph server — keeps the £0 constraint).
+  Future<String> _prepareGlyphs(Directory dir) async {
+    const ranges = ['0-255', '256-511', '512-767', '768-1023'];
+    final fontDir = Directory('${dir.path}/glyphs/OpenSans-Regular');
+    if (!await fontDir.exists()) await fontDir.create(recursive: true);
+    for (final r in ranges) {
+      final f = File('${fontDir.path}/$r.pbf');
+      final bytes = await rootBundle.load('assets/glyphs/OpenSans-Regular/$r.pbf');
+      if (!await f.exists() || await f.length() != bytes.lengthInBytes) {
+        await f.writeAsBytes(
+            bytes.buffer.asUint8List(0, bytes.lengthInBytes), flush: true);
+      }
+    }
+    return '${dir.path}/glyphs';
+  }
+
   /// MapLibre style referencing the local PMTiles via the pmtiles:// protocol.
   /// source-layers `network` / `features` match the tile layers we built in
   /// the Python pipeline.
-  String _buildStyle(String pmtilesPath) => '''
+  String _buildStyle(String pmtilesPath, String glyphsPath) => '''
 {
   "version": 8,
+  "glyphs": "file://$glyphsPath/{fontstack}/{range}.pbf",
   "sources": {
     "canal": {
       "type": "vector",
@@ -191,6 +211,31 @@ class _MapScreenState extends State<MapScreen> {
           16, 6.0
         ],
         "line-dasharray": [2, 2]
+      }
+    },
+    {
+      "id": "places",
+      "type": "symbol",
+      "source": "canal",
+      "source-layer": "places",
+      "minzoom": 8,
+      "filter": ["step", ["zoom"],
+        ["match", ["get", "type"], ["city", "town"], true, false],
+        11, true
+      ],
+      "layout": {
+        "text-field": ["get", "name"],
+        "text-font": ["OpenSans-Regular"],
+        "text-size": ["match", ["get", "type"],
+          "city", 15, "town", 13, "suburb", 12, 11],
+        "text-max-width": 8,
+        "symbol-sort-key": ["match", ["get", "type"],
+          "city", 1, "town", 2, "suburb", 3, "village", 4, 5]
+      },
+      "paint": {
+        "text-color": "#5a6b78",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1.6
       }
     }
   ]
@@ -303,10 +348,40 @@ class _MapScreenState extends State<MapScreen> {
         iconSize: ['interpolate', ['linear'], ['zoom'], 8, 0.38, 13, 0.60, 16, 0.82],
         // Collision handles decluttering; stoppages (below) reserve space first.
         iconAllowOverlap: false,
+        // Names only once zoomed in, so the overview stays clean.
+        textField: ['step', ['zoom'], '', 14, ['get', 'name']],
+        textFont: ['OpenSans-Regular'],
+        textSize: 11.0,
+        textOffset: [0, 1.3],
+        textAnchor: 'top',
+        textOptional: true, // keep the icon even if the label can't fit
+        textColor: '#37474f',
+        textHaloColor: '#ffffff',
+        textHaloWidth: 1.4,
       ),
       sourceLayer: 'features',
+      // Bridges get their own number-label layer below.
+      filter: ['!=', ['get', 'type'], 'bridge'],
       // Let taps fall through to onMapClick — otherwise the plugin swallows
       // them as feature-interactions and taps ON a marker do nothing.
+      enableInteraction: false,
+    );
+
+    // Numbered canal bridges: just the number, close in. Boaters navigate by
+    // these ("moor above Bridge 42"), so no icon — the number is the label.
+    await controller.addSymbolLayer(
+      'canal', 'bridges',
+      SymbolLayerProperties(
+        textField: ['get', 'ref'],
+        textFont: ['OpenSans-Regular'],
+        textSize: 11.0,
+        textColor: '#5d4037',
+        textHaloColor: '#ffffff',
+        textHaloWidth: 1.6,
+      ),
+      sourceLayer: 'features',
+      filter: ['==', ['get', 'type'], 'bridge'],
+      minzoom: 13,
       enableInteraction: false,
     );
   }

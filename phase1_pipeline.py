@@ -192,13 +192,21 @@ def fetch_network():
     """
     canals = osm_ways_to_lines(overpass_query(canal_query))
 
+    # Navigable rivers come primarily from OSM's own navigability tag
+    # (boat=yes) — a data-driven curation that correctly excludes canoe-only /
+    # unnavigable blue lines (boat=no). A hand-written name list alone missed
+    # whole navigations (e.g. the River Stort). The names below are kept as a
+    # belt-and-braces supplement for big rivers with patchy tagging.
     river_filter = "".join(
         f'way["waterway"="river"]["name"="{name}"]{sel};' for name in NAVIGABLE_RIVERS
     )
     river_query = f"""
     [out:json][timeout:600];
     {preamble}
-    ({river_filter});
+    (
+      way["waterway"="river"]["boat"="yes"]{sel};
+      {river_filter}
+    );
     out geom;
     """
     rivers = osm_ways_to_lines(overpass_query(river_query))
@@ -302,16 +310,84 @@ def fetch_crt_facilities():
     # TODO (optional): fetch EA facility data the same way for Thames etc.
 
 
+def fetch_bridges():
+    """Numbered canal bridges. OSM puts the number on the crossing way as
+    `bridge:ref` — boaters navigate by these ("moor above Bridge 42")."""
+    preamble, sel = _region()
+    query = f"""
+    [out:json][timeout:600];
+    {preamble}
+    (way["bridge:ref"]{sel};);
+    out center tags;
+    """
+    feats = []
+    for el in overpass_query(query).get("elements", []):
+        c = el.get("center")
+        if not c:
+            continue
+        tags = el.get("tags", {})
+        ref = (tags.get("bridge:ref") or "").strip()
+        # Skip railway-style refs like "LSC2/06" — not canal bridge numbers.
+        if not ref or "/" in ref or len(ref) > 6:
+            continue
+        feats.append(_feature(
+            {"type": "Point", "coordinates": [c["lon"], c["lat"]]},
+            {
+                "type": "bridge",
+                "ref": ref,  # the number the map labels
+                # Only a real bridge name goes in `name`, so the search index
+                # isn't flooded with thousands of generic "Bridge 41" entries.
+                "name": tags.get("bridge:name"),
+                "source": "osm",
+            },
+        ))
+    return feats
+
+
+def fetch_places():
+    """Town/village names for map context labels."""
+    preamble, sel = _region()
+    query = f"""
+    [out:json][timeout:600];
+    {preamble}
+    (node["place"~"^(city|town|village|suburb|hamlet)$"]["name"]{sel};);
+    out;
+    """
+    feats = []
+    for el in overpass_query(query).get("elements", []):
+        if "lat" not in el:
+            continue
+        tags = el.get("tags", {})
+        feats.append(_feature(
+            {"type": "Point", "coordinates": [el["lon"], el["lat"]]},
+            {"type": tags.get("place"), "name": tags.get("name")},
+        ))
+    return feats
+
+
 # --- 3. Clip to buffer around the water -------------------------------
 
-def clip_to_network(points, network_lines):
-    net = unary_union([shape(l["geometry"]) for l in network_lines])
+_net_union_cache = {}
+
+
+def network_buffer(network_lines, metres):
+    """Prepared polygon `metres` around the network — fast repeated contains().
+    The unary_union is the expensive bit, so cache it across buffer sizes."""
+    key = id(network_lines)
+    net = _net_union_cache.get(key)
+    if net is None:
+        net = unary_union([shape(l["geometry"]) for l in network_lines])
+        _net_union_cache[key] = net
     net_bng = transform(to_bng, net)
-    buf = transform(to_wgs, net_bng.buffer(BUFFER_METRES))
-    # Prepared geometry: fast repeated point-in-polygon over many points
-    # (nationwide clips ~50k GB pubs against one big buffer).
-    pbuf = prep(buf)
-    return [p for p in points if pbuf.contains(shape(p["geometry"]))]
+    return prep(transform(to_wgs, net_bng.buffer(metres)))
+
+
+def clip_points(points, prepared):
+    return [p for p in points if prepared.contains(shape(p["geometry"]))]
+
+
+def clip_to_network(points, network_lines, metres=BUFFER_METRES):
+    return clip_points(points, network_buffer(network_lines, metres))
 
 
 # --- 4. Write outputs + build PMTiles ---------------------------------
@@ -374,22 +450,22 @@ def build_pmtiles():
     (e.g. Windows dev box) we use pmtiles_builder — slower and simpler, but
     keeps the pipeline runnable everywhere with no external binary.
     """
-    layers = ["data/network.geojson", "data/features.geojson"]
+    layers = {
+        "network": "data/network.geojson",
+        "features": "data/features.geojson",
+        "places": "data/places.geojson",
+    }
     if _have_tippecanoe():
         print("build_pmtiles: using tippecanoe")
         subprocess.run([
             "tippecanoe", "-o", "basemap.pmtiles", "-z16", "-Z6",
             "--drop-densest-as-needed", "--force",
-            "-L", "network:data/network.geojson",
-            "-L", "features:data/features.geojson",
+            *[a for name, path in layers.items() for a in ("-L", f"{name}:{path}")],
         ], check=True)
     else:
         print("build_pmtiles: tippecanoe not found — using pure-Python builder")
         import pmtiles_builder
-        pmtiles_builder.build(
-            {"network": layers[0], "features": layers[1]},
-            "basemap.pmtiles", minzoom=6, maxzoom=16,
-        )
+        pmtiles_builder.build(layers, "basemap.pmtiles", minzoom=6, maxzoom=16)
 
 
 if __name__ == "__main__":
@@ -400,9 +476,19 @@ if __name__ == "__main__":
     print(f"  tidal ways flagged: {n_tidal}")
     write_geojson("data/network.geojson", network)
 
+    # Bridges sit ON the water, so clip them tight; POIs use the normal buffer.
+    tight = network_buffer(network, 40)
+    bridges = clip_points(fetch_bridges(), tight)
+    print(f"  numbered bridges: {len(bridges)}")
+
     features = fetch_osm_features() + fetch_crt_facilities()
-    features = clip_to_network(features, network)
+    features = clip_to_network(features, network) + bridges
     write_geojson("data/features.geojson", features)
+
+    # Place labels get a wider buffer so nearby towns give context.
+    places = clip_points(fetch_places(), network_buffer(network, 2500))
+    write_geojson("data/places.geojson", places)
+    print(f"  place labels: {len(places)}")
 
     n = write_search_index("data/search_index.json", features, network)
     print(f"search index: {n} entries")
