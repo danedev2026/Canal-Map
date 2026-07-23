@@ -1,5 +1,5 @@
 {
-  "updated": "2026-07-22T08:31:09Z",
+  "updated": "2026-07-23T08:32:41Z",
   "source": "Canal & River Trust notices",
   "stoppages": [
     {
@@ -172,19 +172,6 @@
       "url": "https://canalrivertrust.org.uk/notices/019cbe08-5284-7f04-8b64-54448ab6f737"
     },
     {
-      "id": "019dd424-ab75-7e85-b3aa-9cd7a80fc4f4",
-      "title": "Bridges 24 to 72, Shropshire/Staffordshire border",
-      "type": "Advice",
-      "reason": "Event",
-      "waterway": "Shropshire Union Canal",
-      "state": "advisory",
-      "start": "2026-09-12T07:00:00+00:00",
-      "end": "2026-09-13T15:00:00+00:00",
-      "lat": 52.9576,
-      "lon": -2.495,
-      "url": "https://canalrivertrust.org.uk/notices/019dd424-ab75-7e85-b3aa-9cd7a80fc4f4"
-    },
-    {
       "id": "019cb910-b737-7ade-936a-d361b4b23991",
       "title": "Robin Hood 100 - A long-distance running event, organised by HOBO PACE",
       "type": "Advice",
@@ -196,6 +183,19 @@
       "lat": 53.3588,
       "lon": -0.9083,
       "url": "https://canalrivertrust.org.uk/notices/019cb910-b737-7ade-936a-d361b4b23991"
+    },
+    {
+      "id": "019dd424-ab75-7e85-b3aa-9cd7a80fc4f4",
+      "title": "Bridges 24 to 72, Shropshire/Staffordshire border",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "Shropshire Union Canal",
+      "state": "advisory",
+      "start": "2026-09-12T07:00:00+00:00",
+      "end": "2026-09-13T15:00:00+00:00",
+      "lat": 52.9576,
+      "lon": -2.495,
+      "url": "https://canalrivertrust.org.uk/notices/019dd424-ab75-7e85-b3aa-9cd7a80fc4f4"
     },
     {
       "id": "019e02c9-be70-7c15-8bf3-941e68e314a9",
@@ -328,6 +328,45 @@
       "url": "https://canalrivertrust.org.uk/notices/019ef42a-e89f-7abe-83f7-8d2f079c253b"
     },
     {
+      "id": "019f8949-cf9f-7276-b2f5-ab0049b5f71f",
+      "title": "Bridge 1 to Bridge 2 ",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "River Witham",
+      "state": "advisory",
+      "start": "2026-08-28T09:00:00+00:00",
+      "end": "2026-08-28T14:30:00+00:00",
+      "lat": 53.2285,
+      "lon": -0.5406,
+      "url": "https://canalrivertrust.org.uk/notices/019f8949-cf9f-7276-b2f5-ab0049b5f71f"
+    },
+    {
+      "id": "019f8947-2e41-72b4-9fe5-da1ad45eed97",
+      "title": "Bridge 217, Rodley Swing Bridge to Bridge 223, Wyther Bridge",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "Leeds & Liverpool Canal",
+      "state": "advisory",
+      "start": "2026-08-27T17:00:00+00:00",
+      "end": "2026-08-27T19:30:00+00:00",
+      "lat": 53.8241,
+      "lon": -1.6632,
+      "url": "https://canalrivertrust.org.uk/notices/019f8947-2e41-72b4-9fe5-da1ad45eed97"
+    },
+    {
+      "id": "019f8939-7a7e-7354-8b97-6a73500c4c33",
+      "title": "Bridge 82A, Childs Way to Bridge 82, Blue Bridge",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "Grand Union Canal",
+      "state": "advisory",
+      "start": "2026-08-27T07:00:00+00:00",
+      "end": "2026-09-01T12:00:00+00:00",
+      "lat": 52.0487,
+      "lon": -0.7336,
+      "url": "https://canalrivertrust.org.uk/notices/019f8939-7a7e-7354-8b97-6a73500c4c33"
+    },
+    {
       "id": "019f0457-f2b0-7704-b03a-d159391f4b71",
       "title": "Deep Lock, Bridge 196 (Skew Bridge) and Bridge 199 (Midland)",
       "type": "Advice",
@@ -354,6 +393,32 @@
       "url": "https://canalrivertrust.org.uk/notices/019f83d6-93f9-7afd-a247-47776c50dc72"
     },
     {
+      "id": "019f8936-227e-72fd-8141-100eba167022",
+      "title": "Stockton-on-Tees Slalom Course",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "Tees Slalom Course",
+      "state": "advisory",
+      "start": "2026-08-22T11:00:00+00:00",
+      "end": "2026-08-22T16:00:00+00:00",
+      "lat": 54.5658,
+      "lon": -1.284,
+      "url": "https://canalrivertrust.org.uk/notices/019f8936-227e-72fd-8141-100eba167022"
+    },
+    {
+      "id": "019f8922-0408-73e1-bf9f-88981fbc0487",
+      "title": "Lock 6, Brearley to Lock 8, Mayroyd ",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "Rochdale Canal",
+      "state": "advisory",
+      "start": "2026-08-22T09:00:00+00:00",
+      "end": "2026-08-22T15:00:00+00:00",
+      "lat": 53.7302,
+      "lon": -1.9597,
+      "url": "https://canalrivertrust.org.uk/notices/019f8922-0408-73e1-bf9f-88981fbc0487"
+    },
+    {
       "id": "019d2e76-5e6c-713b-8543-8c49e299415d",
       "title": "London Summer Walk - 22 August - Lee Navigation & Limehouse Cut",
       "type": "Advice",
@@ -378,6 +443,32 @@
       "lat": 52.8249,
       "lon": -2.3245,
       "url": "https://canalrivertrust.org.uk/notices/019f8479-c72b-725b-961e-340bfe1743b0"
+    },
+    {
+      "id": "019f8932-2b43-76d7-b6a3-451aca6f3fad",
+      "title": "Bridge 216, Owl Swing Bridge to Bridge 226, Office Lock Bridge",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "Leeds & Liverpool Canal",
+      "state": "advisory",
+      "start": "2026-08-22T06:30:00+00:00",
+      "end": "2026-08-22T14:30:00+00:00",
+      "lat": 53.8283,
+      "lon": -1.6665,
+      "url": "https://canalrivertrust.org.uk/notices/019f8932-2b43-76d7-b6a3-451aca6f3fad"
+    },
+    {
+      "id": "019f891e-f6b9-7409-bf0c-348b83bfdcda",
+      "title": "Bridge 200 to Bridge, Saltaire Mill, Steel Footwalk",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "Leeds & Liverpool Canal",
+      "state": "advisory",
+      "start": "2026-08-20T17:00:00+00:00",
+      "end": "2026-08-20T19:30:00+00:00",
+      "lat": 53.8564,
+      "lon": -1.8381,
+      "url": "https://canalrivertrust.org.uk/notices/019f891e-f6b9-7409-bf0c-348b83bfdcda"
     },
     {
       "id": "019f8437-ac2e-726b-9c17-f14cfcd1112f",
@@ -432,6 +523,19 @@
       "url": "https://canalrivertrust.org.uk/notices/019f4b84-53b3-7d59-ab42-8e1dbd869f5c"
     },
     {
+      "id": "019f891a-7ef3-74ed-9edc-c70d682f09af",
+      "title": "Bridge 199  to Lock 17 ",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "Leeds & Liverpool Canal",
+      "state": "advisory",
+      "start": "2026-08-15T06:30:00+00:00",
+      "end": "2026-08-15T14:30:00+00:00",
+      "lat": 53.8624,
+      "lon": -1.8439,
+      "url": "https://canalrivertrust.org.uk/notices/019f891a-7ef3-74ed-9edc-c70d682f09af"
+    },
+    {
       "id": "019d010b-0bba-77ba-a3e4-5f6397edad90",
       "title": "The event will use a section of river between Lincomb Lock, 9 and the Switchback",
       "type": "Advice",
@@ -471,6 +575,19 @@
       "url": "https://canalrivertrust.org.uk/notices/019d2efb-5cbb-7dc3-893d-3216775c29ab"
     },
     {
+      "id": "019f88fd-98f8-70b9-bbeb-0a92ccfe5153",
+      "title": "Brownhills Basin to Anchor Bridge",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "Wyrley & Essington Canal",
+      "state": "advisory",
+      "start": "2026-08-10T08:00:00+00:00",
+      "end": "2026-08-17T10:00:00+00:00",
+      "lat": 52.6464,
+      "lon": -1.9354,
+      "url": "https://canalrivertrust.org.uk/notices/019f88fd-98f8-70b9-bbeb-0a92ccfe5153"
+    },
+    {
       "id": "019f3b8f-4567-7bf7-ab79-fc29537d6f29",
       "title": " Leeds & Liverpool Canal, Bridge 224 Redcote Bridge to Railway Bridge - 3rd Party Works change of date",
       "type": "Advice",
@@ -482,6 +599,45 @@
       "lat": 53.8045,
       "lon": -1.5962,
       "url": "https://canalrivertrust.org.uk/notices/019f3b8f-4567-7bf7-ab79-fc29537d6f29"
+    },
+    {
+      "id": "019f8914-f16f-7c55-a78e-8dbdd9162d27",
+      "title": "Lock 1, Hertford Lock to Lock 2, Ware Lock ",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "Lee Navigation",
+      "state": "advisory",
+      "start": "2026-08-09T08:00:00+00:00",
+      "end": "2026-08-09T11:00:00+00:00",
+      "lat": 51.8109,
+      "lon": -0.041,
+      "url": "https://canalrivertrust.org.uk/notices/019f8914-f16f-7c55-a78e-8dbdd9162d27"
+    },
+    {
+      "id": "019f88f3-05be-7796-a68f-f76e114e88ea",
+      "title": "Lock 1, Hertford Lock to Lock 2, Ware Lock ",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "Lee Navigation",
+      "state": "advisory",
+      "start": "2026-08-09T08:00:00+00:00",
+      "end": "2026-08-09T11:00:00+00:00",
+      "lat": 51.8109,
+      "lon": -0.041,
+      "url": "https://canalrivertrust.org.uk/notices/019f88f3-05be-7796-a68f-f76e114e88ea"
+    },
+    {
+      "id": "019f8910-e23f-7bea-9332-b8ecc0c6d18c",
+      "title": "Lock 50, Mountsorrel Lock to Bridge 23B",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "River Soar",
+      "state": "advisory",
+      "start": "2026-08-09T05:30:00+00:00",
+      "end": "2026-08-09T16:30:00+00:00",
+      "lat": 52.7322,
+      "lon": -1.1344,
+      "url": "https://canalrivertrust.org.uk/notices/019f8910-e23f-7bea-9332-b8ecc0c6d18c"
     },
     {
       "id": "019f8432-4ba9-739e-bc1f-e6c5f46a76fc",
@@ -536,19 +692,6 @@
       "url": "https://canalrivertrust.org.uk/notices/019e02bd-eaa2-7b60-a1af-3c41e0c152ed"
     },
     {
-      "id": "019efda7-c84f-703e-8eb2-2c66dcd98e6f",
-      "title": "Navigation Restriction - Regent's Canal, Between Fitzroy Bridge, Gloucester Avenue and Primrose Hill Bridge, Camden",
-      "type": "Navigation Restriction",
-      "reason": "Event",
-      "waterway": "Regent's Canal",
-      "state": "restricted",
-      "start": "2026-08-07T16:00:00+00:00",
-      "end": "2026-08-08T11:00:00+00:00",
-      "lat": 51.5358,
-      "lon": -0.1593,
-      "url": "https://canalrivertrust.org.uk/notices/019efda7-c84f-703e-8eb2-2c66dcd98e6f"
-    },
-    {
       "id": "019f1878-0176-706b-8dda-1112a910bd7a",
       "title": "Navigation Restriction - Regent's Canal, Between Fitzroy Bridge, Gloucester Avenue and Primrose Hill Bridge, Camden",
       "type": "Navigation Restriction",
@@ -560,6 +703,19 @@
       "lat": 51.5358,
       "lon": -0.1593,
       "url": "https://canalrivertrust.org.uk/notices/019f1878-0176-706b-8dda-1112a910bd7a"
+    },
+    {
+      "id": "019efda7-c84f-703e-8eb2-2c66dcd98e6f",
+      "title": "Navigation Restriction - Regent's Canal, Between Fitzroy Bridge, Gloucester Avenue and Primrose Hill Bridge, Camden",
+      "type": "Navigation Restriction",
+      "reason": "Event",
+      "waterway": "Regent's Canal",
+      "state": "restricted",
+      "start": "2026-08-07T16:00:00+00:00",
+      "end": "2026-08-08T11:00:00+00:00",
+      "lat": 51.5358,
+      "lon": -0.1593,
+      "url": "https://canalrivertrust.org.uk/notices/019efda7-c84f-703e-8eb2-2c66dcd98e6f"
     },
     {
       "id": "019f6052-bb11-7c5b-af67-761ec7e47281",
@@ -599,6 +755,19 @@
       "lat": 53.4888,
       "lon": -1.2288,
       "url": "https://canalrivertrust.org.uk/notices/019f40ce-98ae-760e-bb13-c04cb2d085d6"
+    },
+    {
+      "id": "019f8a07-b61f-7f35-9d90-aaed7d6992e1",
+      "title": "Perry Barr Lock Flight",
+      "type": "Navigation Restriction",
+      "reason": "Low Water Levels",
+      "waterway": "Tame Valley Canal",
+      "state": "restricted",
+      "start": "2026-08-04T14:00:00+00:00",
+      "end": null,
+      "lat": 52.5326,
+      "lon": -1.9144,
+      "url": "https://canalrivertrust.org.uk/notices/019f8a07-b61f-7f35-9d90-aaed7d6992e1"
     },
     {
       "id": "019f854e-19d6-7d00-90a2-541461b1a64b",
@@ -744,19 +913,6 @@
       "url": "https://canalrivertrust.org.uk/notices/019f8423-7d09-7fe1-b6c5-3aa42a27edc4"
     },
     {
-      "id": "019cfbbb-b75d-7d81-bf44-3e21805e1077",
-      "title": "Bridge 92, Nantwich Junction Bridge to Nantwich Aqueduct ",
-      "type": "Advice",
-      "reason": "Event",
-      "waterway": "Shropshire Union Canal",
-      "state": "advisory",
-      "start": "2026-07-30T11:00:00+00:00",
-      "end": "2026-08-03T09:00:00+00:00",
-      "lat": 53.0723,
-      "lon": -2.5397,
-      "url": "https://canalrivertrust.org.uk/notices/019cfbbb-b75d-7d81-bf44-3e21805e1077"
-    },
-    {
       "id": "019f841e-0c89-737a-98fa-7dffd1a67bd3",
       "title": "Bridge 153A to Bridge 154",
       "type": "Advice",
@@ -768,6 +924,19 @@
       "lat": 51.7361,
       "lon": -0.4635,
       "url": "https://canalrivertrust.org.uk/notices/019f841e-0c89-737a-98fa-7dffd1a67bd3"
+    },
+    {
+      "id": "019cfbbb-b75d-7d81-bf44-3e21805e1077",
+      "title": "Bridge 92, Nantwich Junction Bridge to Nantwich Aqueduct ",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "Shropshire Union Canal",
+      "state": "advisory",
+      "start": "2026-07-30T11:00:00+00:00",
+      "end": "2026-08-03T09:00:00+00:00",
+      "lat": 53.0723,
+      "lon": -2.5397,
+      "url": "https://canalrivertrust.org.uk/notices/019cfbbb-b75d-7d81-bf44-3e21805e1077"
     },
     {
       "id": "019f5fe4-e50e-7b48-82e8-09b735d5e186",
@@ -809,19 +978,6 @@
       "url": "https://canalrivertrust.org.uk/notices/019f7ef0-6422-779d-b0e2-240f55b8a8ab"
     },
     {
-      "id": "019f853a-adaf-71cd-8ca6-288eb5e55bb7",
-      "title": "Hillmorton Lock Flight",
-      "type": "Navigation Restriction",
-      "reason": "Low Water Levels",
-      "waterway": "Oxford Canal",
-      "state": "restricted",
-      "start": "2026-07-28T14:00:00+00:00",
-      "end": null,
-      "lat": 52.3665,
-      "lon": -1.2119,
-      "url": "https://canalrivertrust.org.uk/notices/019f853a-adaf-71cd-8ca6-288eb5e55bb7"
-    },
-    {
       "id": "019f8533-b582-7b97-848c-bac30b06bb69",
       "title": "Atherstone Lock Flight",
       "type": "Navigation Restriction",
@@ -848,6 +1004,19 @@
       "url": "https://canalrivertrust.org.uk/notices/019f853d-b222-790b-88b3-1e753db9f6fb"
     },
     {
+      "id": "019f853a-adaf-71cd-8ca6-288eb5e55bb7",
+      "title": "Hillmorton Lock Flight",
+      "type": "Navigation Restriction",
+      "reason": "Low Water Levels",
+      "waterway": "Oxford Canal",
+      "state": "restricted",
+      "start": "2026-07-28T14:00:00+00:00",
+      "end": null,
+      "lat": 52.3665,
+      "lon": -1.2119,
+      "url": "https://canalrivertrust.org.uk/notices/019f853a-adaf-71cd-8ca6-288eb5e55bb7"
+    },
+    {
       "id": "019f8586-c7ee-78c3-81c7-ecdbb939df25",
       "title": "Claydon top lock 17 to Claydon bottom lock 21",
       "type": "Navigation Restriction",
@@ -861,19 +1030,6 @@
       "url": "https://canalrivertrust.org.uk/notices/019f8586-c7ee-78c3-81c7-ecdbb939df25"
     },
     {
-      "id": "019f8579-2254-7c2f-89b6-7721ad4ddad9",
-      "title": "Long Buckby Lock Flight",
-      "type": "Navigation Restriction",
-      "reason": "Low Water Levels",
-      "waterway": "Grand Union Canal",
-      "state": "restricted",
-      "start": "2026-07-28T09:00:00+00:00",
-      "end": null,
-      "lat": 52.2856,
-      "lon": -1.1137,
-      "url": "https://canalrivertrust.org.uk/notices/019f8579-2254-7c2f-89b6-7721ad4ddad9"
-    },
-    {
       "id": "019f857b-ead3-7e90-8433-403c691039ab",
       "title": "Stoke Bruerne Lock Flight",
       "type": "Navigation Restriction",
@@ -885,6 +1041,19 @@
       "lat": 52.142,
       "lon": -0.9147,
       "url": "https://canalrivertrust.org.uk/notices/019f857b-ead3-7e90-8433-403c691039ab"
+    },
+    {
+      "id": "019f8579-2254-7c2f-89b6-7721ad4ddad9",
+      "title": "Long Buckby Lock Flight",
+      "type": "Navigation Restriction",
+      "reason": "Low Water Levels",
+      "waterway": "Grand Union Canal",
+      "state": "restricted",
+      "start": "2026-07-28T09:00:00+00:00",
+      "end": null,
+      "lat": 52.2856,
+      "lon": -1.1137,
+      "url": "https://canalrivertrust.org.uk/notices/019f8579-2254-7c2f-89b6-7721ad4ddad9"
     },
     {
       "id": "019f8574-8f83-79b5-94bd-7683a99e6437",
@@ -926,19 +1095,6 @@
       "url": "https://canalrivertrust.org.uk/notices/019f841a-185b-7c57-9f52-3b0b27945265"
     },
     {
-      "id": "019f857f-f2e0-7393-98e0-432c34ceedcf",
-      "title": "Northampton Lock Flight",
-      "type": "Navigation Closure",
-      "reason": "Low Water Levels",
-      "waterway": "Northampton Arm (GU Canal)",
-      "state": "closed",
-      "start": "2026-07-27T14:00:00+00:00",
-      "end": null,
-      "lat": 52.1979,
-      "lon": -0.9443,
-      "url": "https://canalrivertrust.org.uk/notices/019f857f-f2e0-7393-98e0-432c34ceedcf"
-    },
-    {
       "id": "019f8561-cac9-78b9-b567-a2bf41162509",
       "title": "From Kibworth Top Lock 18 to Kings Lock 38",
       "type": "Navigation Closure",
@@ -950,6 +1106,19 @@
       "lat": 52.5439,
       "lon": -1.0318,
       "url": "https://canalrivertrust.org.uk/notices/019f8561-cac9-78b9-b567-a2bf41162509"
+    },
+    {
+      "id": "019f857f-f2e0-7393-98e0-432c34ceedcf",
+      "title": "Northampton Lock Flight",
+      "type": "Navigation Closure",
+      "reason": "Low Water Levels",
+      "waterway": "Northampton Arm (GU Canal)",
+      "state": "closed",
+      "start": "2026-07-27T14:00:00+00:00",
+      "end": null,
+      "lat": 52.1979,
+      "lon": -0.9443,
+      "url": "https://canalrivertrust.org.uk/notices/019f857f-f2e0-7393-98e0-432c34ceedcf"
     },
     {
       "id": "019f848d-7c0f-77ae-b5d6-d6f4637a3b7c",
@@ -978,19 +1147,6 @@
       "url": "https://canalrivertrust.org.uk/notices/019e91ef-7cc5-759a-8f07-36768f5b4383"
     },
     {
-      "id": "019f4c6a-86d8-7c0d-8401-ba963a327496",
-      "title": "Between Bridge 91 and Fradley Swing Bridge.",
-      "type": "Navigation Restriction",
-      "reason": "Information",
-      "waterway": "Coventry Canal",
-      "state": "restricted",
-      "start": "2026-07-27T07:00:00+00:00",
-      "end": "2026-08-14T16:00:00+00:00",
-      "lat": 52.7213,
-      "lon": -1.7853,
-      "url": "https://canalrivertrust.org.uk/notices/019f4c6a-86d8-7c0d-8401-ba963a327496"
-    },
-    {
       "id": "019f6a70-d74e-70d3-a716-fe7ff37c0317",
       "title": "Thorne Lock - Lock Wall Inspections ",
       "type": "Navigation Restriction",
@@ -1002,6 +1158,19 @@
       "lat": 53.6107,
       "lon": -0.9713,
       "url": "https://canalrivertrust.org.uk/notices/019f6a70-d74e-70d3-a716-fe7ff37c0317"
+    },
+    {
+      "id": "019f4c6a-86d8-7c0d-8401-ba963a327496",
+      "title": "Between Bridge 91 and Fradley Swing Bridge.",
+      "type": "Navigation Restriction",
+      "reason": "Information",
+      "waterway": "Coventry Canal",
+      "state": "restricted",
+      "start": "2026-07-27T07:00:00+00:00",
+      "end": "2026-08-14T16:00:00+00:00",
+      "lat": 52.7213,
+      "lon": -1.7853,
+      "url": "https://canalrivertrust.org.uk/notices/019f4c6a-86d8-7c0d-8401-ba963a327496"
     },
     {
       "id": "019f840a-c2dc-7991-a977-c3d389c8bf7b",
@@ -1082,19 +1251,6 @@
       "url": "https://canalrivertrust.org.uk/notices/019f6f5c-274c-78b0-97b7-3c174d880789"
     },
     {
-      "id": "019f47ab-25d3-7077-9828-782311ac5ef8",
-      "title": "Bridge 64, Lord's Bridge and Bridge 63, Betton Bridge ",
-      "type": "Advice",
-      "reason": "Event",
-      "waterway": "Shropshire Union Canal",
-      "state": "advisory",
-      "start": "2026-07-23T11:00:00+00:00",
-      "end": "2026-07-27T11:00:00+00:00",
-      "lat": 52.9111,
-      "lon": -2.4753,
-      "url": "https://canalrivertrust.org.uk/notices/019f47ab-25d3-7077-9828-782311ac5ef8"
-    },
-    {
       "id": "019f467c-746f-78b8-ac4d-4ab0722411b6",
       "title": "Audlem Lock 12 to Audlem Lock 15",
       "type": "Advice",
@@ -1108,17 +1264,17 @@
       "url": "https://canalrivertrust.org.uk/notices/019f467c-746f-78b8-ac4d-4ab0722411b6"
     },
     {
-      "id": "019f6fc1-015b-7f26-9ed9-4be8f1bcb367",
-      "title": "Navigation Restriction - Rochdale Canal, Lock 27 Hollings, Walsden ",
-      "type": "Navigation Restriction",
-      "reason": "Maintenance",
-      "waterway": "Rochdale Canal",
-      "state": "restricted",
-      "start": "2026-07-23T07:00:00+00:00",
-      "end": null,
-      "lat": 53.6964,
-      "lon": -2.1034,
-      "url": "https://canalrivertrust.org.uk/notices/019f6fc1-015b-7f26-9ed9-4be8f1bcb367"
+      "id": "019f47ab-25d3-7077-9828-782311ac5ef8",
+      "title": "Bridge 64, Lord's Bridge and Bridge 63, Betton Bridge ",
+      "type": "Advice",
+      "reason": "Event",
+      "waterway": "Shropshire Union Canal",
+      "state": "advisory",
+      "start": "2026-07-23T11:00:00+00:00",
+      "end": "2026-07-27T11:00:00+00:00",
+      "lat": 52.9111,
+      "lon": -2.4753,
+      "url": "https://canalrivertrust.org.uk/notices/019f47ab-25d3-7077-9828-782311ac5ef8"
     },
     {
       "id": "019f2837-1837-71cb-b704-a1067d989728",
@@ -1147,30 +1303,56 @@
       "url": "https://canalrivertrust.org.uk/notices/019f6a91-18a8-7dfe-9800-187d34042506"
     },
     {
-      "id": "019f604f-ab3a-7470-9d28-9385e0189d96",
-      "title": "Railway Bridge 2A, Saxilby",
-      "type": "Advice",
-      "reason": "3rd Party Works",
-      "waterway": "Fossdyke Canal",
-      "state": "advisory",
-      "start": "2026-07-22T07:00:00+00:00",
-      "end": "2026-07-22T16:00:00+00:00",
-      "lat": 53.266,
-      "lon": -0.6615,
-      "url": "https://canalrivertrust.org.uk/notices/019f604f-ab3a-7470-9d28-9385e0189d96"
+      "id": "019f6fc1-015b-7f26-9ed9-4be8f1bcb367",
+      "title": "Navigation Restriction - Rochdale Canal, Lock 27 Hollings, Walsden ",
+      "type": "Navigation Restriction",
+      "reason": "Maintenance",
+      "waterway": "Rochdale Canal",
+      "state": "restricted",
+      "start": "2026-07-23T07:00:00+00:00",
+      "end": null,
+      "lat": 53.6964,
+      "lon": -2.1034,
+      "url": "https://canalrivertrust.org.uk/notices/019f6fc1-015b-7f26-9ed9-4be8f1bcb367"
     },
     {
-      "id": "019f177a-25f5-710d-91b6-ecf333fab50d",
-      "title": "Deerhurst Gauging Station, Tewkesbury.",
+      "id": "019f8a0b-50da-71f9-8091-5fec6a7fed9e",
+      "title": "Gunthorpe Lock 11",
       "type": "Advice",
-      "reason": "3rd Party Works",
-      "waterway": "River Severn Navigation",
+      "reason": "Maintenance",
+      "waterway": "River Trent",
       "state": "advisory",
-      "start": "2026-07-22T07:00:00+00:00",
-      "end": "2026-09-04T17:00:00+00:00",
-      "lat": 51.9489,
-      "lon": -2.2267,
-      "url": "https://canalrivertrust.org.uk/notices/019f177a-25f5-710d-91b6-ecf333fab50d"
+      "start": "2026-07-23T07:00:00+00:00",
+      "end": "2026-07-23T15:00:00+00:00",
+      "lat": 52.9868,
+      "lon": -0.9767,
+      "url": "https://canalrivertrust.org.uk/notices/019f8a0b-50da-71f9-8091-5fec6a7fed9e"
+    },
+    {
+      "id": "019f89e1-9a67-720d-b496-7710f8e2d7e0",
+      "title": "Bridge 85",
+      "type": "Advice",
+      "reason": "Vehicle Incident",
+      "waterway": "Shropshire Union Canal",
+      "state": "advisory",
+      "start": "2026-07-22T15:55:00+00:00",
+      "end": null,
+      "lat": 53.0291,
+      "lon": -2.535,
+      "url": "https://canalrivertrust.org.uk/notices/019f89e1-9a67-720d-b496-7710f8e2d7e0"
+    },
+    {
+      "id": "019f89e4-93a6-7bad-b4dc-e8b9333d91c4",
+      "title": "Pump Out, Bosley Services",
+      "type": "Customer Service Facility",
+      "reason": "Repair",
+      "waterway": "Macclesfield Canal",
+      "state": "advisory",
+      "start": "2026-07-22T12:57:00+00:00",
+      "end": null,
+      "lat": 53.2,
+      "lon": -2.1431,
+      "url": "https://canalrivertrust.org.uk/notices/019f89e4-93a6-7bad-b4dc-e8b9333d91c4"
     },
     {
       "id": "019f2378-ff9c-7657-8f3c-8db9cbe169c0",
@@ -1186,17 +1368,17 @@
       "url": "https://canalrivertrust.org.uk/notices/019f2378-ff9c-7657-8f3c-8db9cbe169c0"
     },
     {
-      "id": "019f3bea-2528-71a8-b776-8eb48a09a46b",
-      "title": "Dewsbury Arm (Calder & Hebble Navigation), Bridge 36 - Railway Bridge, Dewsbury ",
-      "type": "Navigation Restriction",
+      "id": "019f177a-25f5-710d-91b6-ecf333fab50d",
+      "title": "Deerhurst Gauging Station, Tewkesbury.",
+      "type": "Advice",
       "reason": "3rd Party Works",
-      "waterway": "Dewsbury Arm (Calder & Hebble Nav)",
-      "state": "restricted",
+      "waterway": "River Severn Navigation",
+      "state": "advisory",
       "start": "2026-07-22T07:00:00+00:00",
-      "end": "2026-07-22T17:00:00+00:00",
-      "lat": 53.6748,
-      "lon": -1.6222,
-      "url": "https://canalrivertrust.org.uk/notices/019f3bea-2528-71a8-b776-8eb48a09a46b"
+      "end": "2026-09-04T17:00:00+00:00",
+      "lat": 51.9489,
+      "lon": -2.2267,
+      "url": "https://canalrivertrust.org.uk/notices/019f177a-25f5-710d-91b6-ecf333fab50d"
     },
     {
       "id": "019f6f59-76d4-7fa9-ae44-e968337db74d",
@@ -1210,19 +1392,6 @@
       "lat": 51.9002,
       "lon": -1.2939,
       "url": "https://canalrivertrust.org.uk/notices/019f6f59-76d4-7fa9-ae44-e968337db74d"
-    },
-    {
-      "id": "019f193a-8eaf-74b2-9f5b-39ff4cf7f897",
-      "title": "Glascote Lock 13",
-      "type": "Navigation Closure",
-      "reason": "Repair",
-      "waterway": "Coventry Canal",
-      "state": "closed",
-      "start": "2026-07-22T05:00:00+00:00",
-      "end": "2026-07-22T11:30:00+00:00",
-      "lat": 52.6255,
-      "lon": -1.6825,
-      "url": "https://canalrivertrust.org.uk/notices/019f193a-8eaf-74b2-9f5b-39ff4cf7f897"
     },
     {
       "id": "019f85f2-bb5f-7e90-b943-3a0bfd4df580",
@@ -1290,19 +1459,6 @@
       "url": "https://canalrivertrust.org.uk/notices/019f7f06-a6d9-78fa-a5d8-a002ed13e5e8"
     },
     {
-      "id": "019f6548-f7b3-7dd8-ba50-358ea7d60129",
-      "title": "Navigation Closure - Rochdale Canal, Locks  20 to 24, Todmorden - Tuesday July 21st",
-      "type": "Navigation Closure",
-      "reason": "Repair",
-      "waterway": "Rochdale Canal",
-      "state": "closed",
-      "start": "2026-07-21T07:00:00+00:00",
-      "end": null,
-      "lat": 53.7084,
-      "lon": -2.1041,
-      "url": "https://canalrivertrust.org.uk/notices/019f6548-f7b3-7dd8-ba50-358ea7d60129"
-    },
-    {
       "id": "019f26e7-7390-7c16-9b03-3e5bfefc39b7",
       "title": "Berkeley Avenue (Bridge 5) and Duke Street (Bridge 1), Reading .",
       "type": "Advice",
@@ -1314,19 +1470,6 @@
       "lat": 51.4541,
       "lon": -0.9686,
       "url": "https://canalrivertrust.org.uk/notices/019f26e7-7390-7c16-9b03-3e5bfefc39b7"
-    },
-    {
-      "id": "019f8041-7291-7511-bd10-f9737d8c7afc",
-      "title": "Elsan at Little Venice Sanitary Station ",
-      "type": "Customer Service Facility",
-      "reason": "Maintenance",
-      "waterway": "Paddington Arm (Grand Union Canal)",
-      "state": "advisory",
-      "start": "2026-07-20T16:07:00+00:00",
-      "end": null,
-      "lat": 51.5213,
-      "lon": -0.1845,
-      "url": "https://canalrivertrust.org.uk/notices/019f8041-7291-7511-bd10-f9737d8c7afc"
     },
     {
       "id": "019f7f82-4455-7434-af9b-c74b82b895b8",
@@ -1342,45 +1485,6 @@
       "url": "https://canalrivertrust.org.uk/notices/019f7f82-4455-7434-af9b-c74b82b895b8"
     },
     {
-      "id": "019f7f4f-c6d2-7975-8667-8ebc44aea9d2",
-      "title": "Fallen Tree Debris Restricting Navigation - North of Lock 45, Wolvercote Lock",
-      "type": "Navigation Restriction",
-      "reason": "Vegetation",
-      "waterway": "Oxford Canal",
-      "state": "restricted",
-      "start": "2026-07-20T11:42:00+00:00",
-      "end": null,
-      "lat": 51.7874,
-      "lon": -1.2887,
-      "url": "https://canalrivertrust.org.uk/notices/019f7f4f-c6d2-7975-8667-8ebc44aea9d2"
-    },
-    {
-      "id": "019f7f16-df5f-7f77-b451-7e8988055732",
-      "title": "Cowley Elsan, Grand Union canal ",
-      "type": "Customer Service Facility",
-      "reason": "Repair",
-      "waterway": "Grand Union Canal",
-      "state": "advisory",
-      "start": "2026-07-20T10:40:00+00:00",
-      "end": null,
-      "lat": 51.5295,
-      "lon": -0.4856,
-      "url": "https://canalrivertrust.org.uk/notices/019f7f16-df5f-7f77-b451-7e8988055732"
-    },
-    {
-      "id": "019f7f04-2a6f-70ec-8af1-85c0b0ef4c2e",
-      "title": "Pumpout at Bishop's Stortford Sanitary Station",
-      "type": "Customer Service Facility",
-      "reason": "Repair",
-      "waterway": "River Stort",
-      "state": "advisory",
-      "start": "2026-07-20T10:40:00+00:00",
-      "end": null,
-      "lat": 51.8678,
-      "lon": 0.1622,
-      "url": "https://canalrivertrust.org.uk/notices/019f7f04-2a6f-70ec-8af1-85c0b0ef4c2e"
-    },
-    {
       "id": "019f7ee9-2c87-7b72-bfba-7b48be5a3b40",
       "title": "Ferrybridge Flood Lock to Goole - Water Levels Being Lowered",
       "type": "Advice",
@@ -1392,19 +1496,6 @@
       "lat": 53.7141,
       "lon": -1.2665,
       "url": "https://canalrivertrust.org.uk/notices/019f7ee9-2c87-7b72-bfba-7b48be5a3b40"
-    },
-    {
-      "id": "019f7ed1-6e18-79de-84ea-d74f90c5e71d",
-      "title": "Bradford on Avon Lock.",
-      "type": "Navigation Closure",
-      "reason": "Low Water Levels",
-      "waterway": "Kennet & Avon Canal",
-      "state": "closed",
-      "start": "2026-07-20T09:22:00+00:00",
-      "end": null,
-      "lat": 51.348,
-      "lon": -2.1438,
-      "url": "https://canalrivertrust.org.uk/notices/019f7ed1-6e18-79de-84ea-d74f90c5e71d"
     },
     {
       "id": "019f7e67-254b-741b-865e-7f1946a7332b",
@@ -1433,34 +1524,8 @@
       "url": "https://canalrivertrust.org.uk/notices/019f5bbc-e4ce-7697-b6f8-c4031aa206c0"
     },
     {
-      "id": "019f6fbd-c843-7939-8854-976d6edb7b21",
-      "title": "Lock 1 to Lock 3, Birmingham",
-      "type": "Navigation Restriction",
-      "reason": "Low Water Levels",
-      "waterway": "Spon Lane Locks",
-      "state": "restricted",
-      "start": "2026-07-19T23:00:00+00:00",
-      "end": null,
-      "lat": 52.5067,
-      "lon": -1.9956,
-      "url": "https://canalrivertrust.org.uk/notices/019f6fbd-c843-7939-8854-976d6edb7b21"
-    },
-    {
-      "id": "019f6f7e-b912-74a9-957e-f8e143173b10",
-      "title": "Lock 1 to Lock 3, Birmingham",
-      "type": "Navigation Restriction",
-      "reason": "Low Water Levels",
-      "waterway": "Gower Branch (New Main Line)",
-      "state": "restricted",
-      "start": "2026-07-19T23:00:00+00:00",
-      "end": null,
-      "lat": 52.5111,
-      "lon": -2.0331,
-      "url": "https://canalrivertrust.org.uk/notices/019f6f7e-b912-74a9-957e-f8e143173b10"
-    },
-    {
       "id": "019f6fc6-f31f-79e5-afe8-cf1251ec00eb",
-      "title": "Lock 1 to Lock 8, Birmingham",
+      "title": "Ryders Green Lock Flight",
       "type": "Navigation Restriction",
       "reason": "Low Water Levels",
       "waterway": "Walsall Canal",
@@ -1472,8 +1537,34 @@
       "url": "https://canalrivertrust.org.uk/notices/019f6fc6-f31f-79e5-afe8-cf1251ec00eb"
     },
     {
+      "id": "019f6f7e-b912-74a9-957e-f8e143173b10",
+      "title": "Brades Lock Flight",
+      "type": "Navigation Restriction",
+      "reason": "Low Water Levels",
+      "waterway": "Gower Branch (New Main Line)",
+      "state": "restricted",
+      "start": "2026-07-19T23:00:00+00:00",
+      "end": null,
+      "lat": 52.5111,
+      "lon": -2.0331,
+      "url": "https://canalrivertrust.org.uk/notices/019f6f7e-b912-74a9-957e-f8e143173b10"
+    },
+    {
+      "id": "019f6fd4-e74f-73d3-9644-91c9bce630be",
+      "title": "Wolverhampton Lock Flight",
+      "type": "Navigation Restriction",
+      "reason": "Low Water Levels",
+      "waterway": "Old Main Line",
+      "state": "restricted",
+      "start": "2026-07-19T23:00:00+00:00",
+      "end": null,
+      "lat": 52.6078,
+      "lon": -2.1446,
+      "url": "https://canalrivertrust.org.uk/notices/019f6fd4-e74f-73d3-9644-91c9bce630be"
+    },
+    {
       "id": "019f6fc1-e964-71ca-949a-bbfb4118306e",
-      "title": "Lock 1 to Lock 3, Birmingham",
+      "title": "Smethwick Locks, Birmingham",
       "type": "Navigation Restriction",
       "reason": "Low Water Levels",
       "waterway": "Old Main Line",
@@ -1485,17 +1576,17 @@
       "url": "https://canalrivertrust.org.uk/notices/019f6fc1-e964-71ca-949a-bbfb4118306e"
     },
     {
-      "id": "019f6fd4-e74f-73d3-9644-91c9bce630be",
-      "title": "Lock 1 to Lock 21, Wolverhampton Flight",
+      "id": "019f6fbd-c843-7939-8854-976d6edb7b21",
+      "title": "Spon Lane Locks",
       "type": "Navigation Restriction",
       "reason": "Low Water Levels",
-      "waterway": "Old Main Line",
+      "waterway": "Spon Lane Locks",
       "state": "restricted",
       "start": "2026-07-19T23:00:00+00:00",
       "end": null,
-      "lat": 52.6078,
-      "lon": -2.1446,
-      "url": "https://canalrivertrust.org.uk/notices/019f6fd4-e74f-73d3-9644-91c9bce630be"
+      "lat": 52.5067,
+      "lon": -1.9956,
+      "url": "https://canalrivertrust.org.uk/notices/019f6fbd-c843-7939-8854-976d6edb7b21"
     },
     {
       "id": "019f79e2-e9a2-7825-8032-eb7a2c0cfbea",
@@ -1535,19 +1626,6 @@
       "lat": 52.945,
       "lon": -1.2844,
       "url": "https://canalrivertrust.org.uk/notices/019f74ac-3551-7bf5-b3c6-a38013dbc6b5"
-    },
-    {
-      "id": "019f745a-0712-7eb9-97bb-0515fdcfb9c5",
-      "title": "Widbrook Winding Hole, Bradford-on-Avon",
-      "type": "Navigation Restriction",
-      "reason": "Vegetation",
-      "waterway": "Kennet & Avon Canal",
-      "state": "restricted",
-      "start": "2026-07-18T08:40:00+00:00",
-      "end": null,
-      "lat": 51.3345,
-      "lon": -2.2276,
-      "url": "https://canalrivertrust.org.uk/notices/019f745a-0712-7eb9-97bb-0515fdcfb9c5"
     },
     {
       "id": "019f7094-0db2-7f3e-b884-89d97f026635",
@@ -1695,10 +1773,10 @@
     {
       "id": "019f6b00-4240-7422-8819-0fdc93fbc2f8",
       "title": "Marsh Lock",
-      "type": "Navigation Restriction",
+      "type": "Navigation Closure",
       "reason": "Repair",
       "waterway": "Weaver Navigation",
-      "state": "restricted",
+      "state": "closed",
       "start": "2026-07-16T12:59:00+00:00",
       "end": null,
       "lat": 53.3129,
@@ -1730,19 +1808,6 @@
       "lat": 51.7368,
       "lon": -2.4487,
       "url": "https://canalrivertrust.org.uk/notices/019f65f7-b9b1-7a7e-af6c-6a317415f019"
-    },
-    {
-      "id": "019f65d8-f810-782f-aedf-ccad6eca5283",
-      "title": "Lock 41 to Lock 71",
-      "type": "Navigation Closure",
-      "reason": "Low Water Levels",
-      "waterway": "Trent & Mersey Canal",
-      "state": "closed",
-      "start": "2026-07-15T13:02:00+00:00",
-      "end": "2026-07-22T11:00:00+00:00",
-      "lat": 53.1869,
-      "lon": -2.4405,
-      "url": "https://canalrivertrust.org.uk/notices/019f65d8-f810-782f-aedf-ccad6eca5283"
     },
     {
       "id": "019f6628-bb95-748d-8c0a-25e5450afd03",
@@ -1823,19 +1888,6 @@
       "url": "https://canalrivertrust.org.uk/notices/019f650f-bb3f-7b09-a1c3-93960dc19a6a"
     },
     {
-      "id": "019f64fd-81bd-7b34-95ee-a54b8f380656",
-      "title": "Elsan at Shireoaks Marina is blocked and not operational",
-      "type": "Customer Service Facility",
-      "reason": "Repair",
-      "waterway": "Chesterfield Canal",
-      "state": "advisory",
-      "start": "2026-07-15T09:05:00+00:00",
-      "end": null,
-      "lat": 53.3227,
-      "lon": -1.1656,
-      "url": "https://canalrivertrust.org.uk/notices/019f64fd-81bd-7b34-95ee-a54b8f380656"
-    },
-    {
       "id": "019f60ea-534f-7113-9f3b-fba5447b22cf",
       "title": "River Stort \u2013 Temporary Lock Closures Due to Low Water Levels",
       "type": "Navigation Closure",
@@ -1901,17 +1953,17 @@
       "url": "https://canalrivertrust.org.uk/notices/019f5bdd-3e0b-77cc-9cc1-8667edde3b3c"
     },
     {
-      "id": "019f4657-44b2-7329-87be-38564791554c",
-      "title": "Watford Lock Flight",
+      "id": "019f280a-c4b2-7d81-a481-2dd5721a7c80",
+      "title": "From Kibworth Top Lock 18 to Kings Lock 38",
       "type": "Navigation Restriction",
       "reason": "Low Water Levels",
       "waterway": "Leicester Line (Grand Union Canal)",
       "state": "restricted",
       "start": "2026-07-13T14:00:00+00:00",
-      "end": null,
-      "lat": 52.3122,
-      "lon": -1.1312,
-      "url": "https://canalrivertrust.org.uk/notices/019f4657-44b2-7329-87be-38564791554c"
+      "end": "2026-07-27T14:00:00+00:00",
+      "lat": 52.5439,
+      "lon": -1.0318,
+      "url": "https://canalrivertrust.org.uk/notices/019f280a-c4b2-7d81-a481-2dd5721a7c80"
     },
     {
       "id": "019f4653-ee48-7921-89a9-ee0b0a24a9a0",
@@ -1927,17 +1979,17 @@
       "url": "https://canalrivertrust.org.uk/notices/019f4653-ee48-7921-89a9-ee0b0a24a9a0"
     },
     {
-      "id": "019f280a-c4b2-7d81-a481-2dd5721a7c80",
-      "title": "From Kibworth Top Lock 18 to Kings Lock 38",
+      "id": "019f4657-44b2-7329-87be-38564791554c",
+      "title": "Watford Lock Flight",
       "type": "Navigation Restriction",
       "reason": "Low Water Levels",
       "waterway": "Leicester Line (Grand Union Canal)",
       "state": "restricted",
       "start": "2026-07-13T14:00:00+00:00",
-      "end": "2026-07-27T14:00:00+00:00",
-      "lat": 52.5439,
-      "lon": -1.0318,
-      "url": "https://canalrivertrust.org.uk/notices/019f280a-c4b2-7d81-a481-2dd5721a7c80"
+      "end": null,
+      "lat": 52.3122,
+      "lon": -1.1312,
+      "url": "https://canalrivertrust.org.uk/notices/019f4657-44b2-7329-87be-38564791554c"
     },
     {
       "id": "019f5bbd-c6ce-7a1d-b732-59e8bffe3f53",
@@ -1977,19 +2029,6 @@
       "lat": 53.899,
       "lon": -0.8913,
       "url": "https://canalrivertrust.org.uk/notices/019f5b78-7d1c-734b-a522-b19debcb39bc"
-    },
-    {
-      "id": "019f5b3f-ab4e-7946-810f-db17f79d7286",
-      "title": "Braunston CSF- next to Midland Chandlers ",
-      "type": "Customer Service Facility",
-      "reason": "Repair",
-      "waterway": "Oxford Canal",
-      "state": "advisory",
-      "start": "2026-07-13T11:36:00+00:00",
-      "end": null,
-      "lat": 52.2902,
-      "lon": -1.2206,
-      "url": "https://canalrivertrust.org.uk/notices/019f5b3f-ab4e-7946-810f-db17f79d7286"
     },
     {
       "id": "019f5b13-216f-748b-aa3e-67648767d8c3",
@@ -2187,19 +2226,6 @@
       "url": "https://canalrivertrust.org.uk/notices/019f46fc-e3e2-7ef8-a9a3-ed3381eaac75"
     },
     {
-      "id": "019f46d5-7c53-76f9-84f7-d859945ba69e",
-      "title": "Lock 19 Marsh Lock\n",
-      "type": "Navigation Closure",
-      "reason": "Repair",
-      "waterway": "Staffordshire & Worcestershire Cnl",
-      "state": "closed",
-      "start": "2026-07-09T12:46:00+00:00",
-      "end": "2026-07-23T17:00:00+00:00",
-      "lat": 52.513,
-      "lon": -2.2046,
-      "url": "https://canalrivertrust.org.uk/notices/019f46d5-7c53-76f9-84f7-d859945ba69e"
-    },
-    {
       "id": "019f4621-56cf-7cef-8b47-9d86f299c509",
       "title": " Bridge 30, Bathpool Swing Bridge, and Bridge 28, Hyde Bridge.\n\n",
       "type": "Navigation Closure",
@@ -2304,19 +2330,6 @@
       "url": "https://canalrivertrust.org.uk/notices/019f375b-dc5e-766f-9b7b-1e6ec030ded7"
     },
     {
-      "id": "019edfac-e4e9-72df-9fb0-f7117251cda7",
-      "title": "Keadby lock, Keadby; near Scunthorpe, Stainforth & Keadby Canal",
-      "type": "Navigation Restriction",
-      "reason": "Information",
-      "waterway": "Stainforth & Keadby Canal",
-      "state": "restricted",
-      "start": "2026-07-06T08:00:00+00:00",
-      "end": null,
-      "lat": 53.5927,
-      "lon": -0.7402,
-      "url": "https://canalrivertrust.org.uk/notices/019edfac-e4e9-72df-9fb0-f7117251cda7"
-    },
-    {
       "id": "019f1d4c-11a6-7e42-bf0e-30bd968819db",
       "title": "Low water levels from Lock 1 to Lock 2 ",
       "type": "Navigation Closure",
@@ -2343,6 +2356,32 @@
       "url": "https://canalrivertrust.org.uk/notices/019f1d42-eb3c-7707-b44c-299049d0f4b0"
     },
     {
+      "id": "019edfac-e4e9-72df-9fb0-f7117251cda7",
+      "title": "Keadby lock, Keadby; near Scunthorpe, Stainforth & Keadby Canal",
+      "type": "Navigation Restriction",
+      "reason": "Information",
+      "waterway": "Stainforth & Keadby Canal",
+      "state": "restricted",
+      "start": "2026-07-06T08:00:00+00:00",
+      "end": null,
+      "lat": 53.5927,
+      "lon": -0.7402,
+      "url": "https://canalrivertrust.org.uk/notices/019edfac-e4e9-72df-9fb0-f7117251cda7"
+    },
+    {
+      "id": "019f038c-b89a-7880-b192-eaa9706f96ed",
+      "title": "Car park at Bridge 32, Horninglow Bridge, Burton on Trent",
+      "type": "Advice",
+      "reason": "3rd Party Works",
+      "waterway": "Trent & Mersey Canal",
+      "state": "advisory",
+      "start": "2026-07-06T07:00:00+00:00",
+      "end": "2026-09-27T16:00:00+00:00",
+      "lat": 52.8191,
+      "lon": -1.6399,
+      "url": "https://canalrivertrust.org.uk/notices/019f038c-b89a-7880-b192-eaa9706f96ed"
+    },
+    {
       "id": "019e6eb7-39b7-7a39-a504-ce3bc8ab77d2",
       "title": "Sawley Flood Lock 1",
       "type": "Navigation Restriction",
@@ -2367,19 +2406,6 @@
       "lat": 53.1788,
       "lon": -2.1858,
       "url": "https://canalrivertrust.org.uk/notices/019edb2d-6b92-7a56-ae7c-aee950f27711"
-    },
-    {
-      "id": "019f038c-b89a-7880-b192-eaa9706f96ed",
-      "title": "Car park at Bridge 32, Horninglow Bridge, Burton on Trent",
-      "type": "Advice",
-      "reason": "3rd Party Works",
-      "waterway": "Trent & Mersey Canal",
-      "state": "advisory",
-      "start": "2026-07-06T07:00:00+00:00",
-      "end": "2026-09-27T16:00:00+00:00",
-      "lat": 52.8191,
-      "lon": -1.6399,
-      "url": "https://canalrivertrust.org.uk/notices/019f038c-b89a-7880-b192-eaa9706f96ed"
     },
     {
       "id": "019f2722-a2bc-7fb1-933e-ff3ff98fae46",
