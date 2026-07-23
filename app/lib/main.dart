@@ -219,25 +219,7 @@ class _MapScreenState extends State<MapScreen> {
 
     await _addPoiLayer(controller);
     await controller.addGeoJsonSource(_stoppagesSourceId, result.data.toGeoJson());
-    await controller.addCircleLayer(
-      _stoppagesSourceId,
-      _stoppagesLayerId,
-      CircleLayerProperties(
-        circleRadius: [
-          'interpolate', ['linear'], ['zoom'], 8, 6.0, 14, 9.0, 16, 12.0,
-        ],
-        circleColor: [
-          'match', ['get', 'state'],
-          'closed', '#d32f2f',
-          'restricted', '#f9a825',
-          'advisory', '#1976d2',
-          '#d32f2f',
-        ],
-        circleStrokeColor: '#ffffff',
-        circleStrokeWidth: 2.5,
-        circleOpacity: 0.9,
-      ),
-    );
+    await _addStoppageLayer(controller);
 
     // Empty route layers, updated on demand when a route is computed.
     await controller.addGeoJsonSource('route', _emptyFc());
@@ -250,18 +232,20 @@ class _MapScreenState extends State<MapScreen> {
         lineCap: 'round',
         lineJoin: 'round',
       ),
+      enableInteraction: false,
     );
     await controller.addGeoJsonSource('route-ends', _emptyFc());
     await controller.addCircleLayer(
       'route-ends', 'route-ends-layer',
       CircleLayerProperties(
-        circleRadius: 8.0,
+        circleRadius: 9.0,
         circleColor: [
           'match', ['get', 'role'], 'start', '#2e7d32', 'end', '#c62828', '#000000',
         ],
         circleStrokeColor: '#ffffff',
         circleStrokeWidth: 2.5,
       ),
+      enableInteraction: false,
     );
   }
 
@@ -316,10 +300,44 @@ class _MapScreenState extends State<MapScreen> {
       'canal', _featuresLayerId,
       SymbolLayerProperties(
         iconImage: iconMatch,
-        iconSize: ['interpolate', ['linear'], ['zoom'], 8, 0.28, 13, 0.45, 16, 0.62],
+        iconSize: ['interpolate', ['linear'], ['zoom'], 8, 0.38, 13, 0.60, 16, 0.82],
+        // Collision handles decluttering; stoppages (below) reserve space first.
         iconAllowOverlap: false,
       ),
       sourceLayer: 'features',
+      // Let taps fall through to onMapClick — otherwise the plugin swallows
+      // them as feature-interactions and taps ON a marker do nothing.
+      enableInteraction: false,
+    );
+  }
+
+  /// Stoppages as a symbol layer: always drawn (safety info), but they occupy
+  /// collision space so POI icons move out of the way instead of overlapping.
+  Future<void> _addStoppageLayer(MapLibreMapController controller) async {
+    const states = <String, Color>{
+      'closed': Color(0xFFD32F2F),
+      'restricted': Color(0xFFF9A825),
+      'advisory': Color(0xFF1976D2),
+    };
+    for (final e in states.entries) {
+      await controller.addImage(
+          'stop_${e.key}', await _renderIcon(Icons.warning_rounded, e.value));
+    }
+    final match = <dynamic>['match', ['get', 'state']];
+    for (final k in states.keys) {
+      match..add(k)..add('stop_$k');
+    }
+    match.add('stop_closed');
+
+    await controller.addSymbolLayer(
+      _stoppagesSourceId, _stoppagesLayerId,
+      SymbolLayerProperties(
+        iconImage: match,
+        iconSize: ['interpolate', ['linear'], ['zoom'], 8, 0.44, 13, 0.66, 16, 0.9],
+        iconAllowOverlap: true, // closures must always be visible
+        iconIgnorePlacement: false, // ...but still block POI icons
+      ),
+      enableInteraction: false,
     );
   }
 
