@@ -511,11 +511,15 @@ class _MapScreenState extends State<MapScreen> {
     // geographic space against the in-memory list, with a zoom-scaled pixel
     // tolerance. Avoids mixing screen-coordinate scales across devices.
     final zoom = controller.cameraPosition?.zoom ?? 14.0;
+    // MapLibre uses 512px tiles, so metres/pixel is half the classic 256px
+    // figure. Getting this wrong made the tap target twice the intended size.
     final metresPerPixel = 156543.03392 *
         math.cos(latLng.latitude * math.pi / 180) /
-        math.pow(2, zoom);
-    // Generous tap target (~44px) — closures matter and the marker is bold.
-    final thresholdM = 44.0 * metresPerPixel;
+        math.pow(2, zoom) /
+        2;
+    // ~22px ≈ twice the marker's radius: comfortable to hit, but taps well
+    // away from a stoppage no longer select it.
+    final thresholdM = 22.0 * metresPerPixel;
     Stoppage? hit;
     var hitDist = double.infinity;
     for (final s in _stoppages) {
@@ -720,25 +724,30 @@ class _MapScreenState extends State<MapScreen> {
           ),
         ],
       ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FloatingActionButton.small(
-            heroTag: 'route',
-            onPressed: _toggleRouteMode,
-            tooltip: 'Plan a route',
-            backgroundColor: _routeMode ? const Color(0xFF6A1B9A) : null,
-            foregroundColor: _routeMode ? Colors.white : null,
-            child: Icon(_routeMode ? Icons.close : Icons.directions_boat),
-          ),
-          const SizedBox(height: 12),
-          FloatingActionButton(
-            heroTag: 'loc',
-            onPressed: _followMe,
-            tooltip: 'My location',
-            child: Icon(following ? Icons.my_location : Icons.location_searching),
-          ),
-        ],
+      // In route mode the summary panel occupies the bottom strip, so lift the
+      // buttons clear of it — otherwise they cover the journey figures.
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(bottom: _routeMode ? 104 : 0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FloatingActionButton.small(
+              heroTag: 'route',
+              onPressed: _toggleRouteMode,
+              tooltip: 'Plan a route',
+              backgroundColor: _routeMode ? const Color(0xFF6A1B9A) : null,
+              foregroundColor: _routeMode ? Colors.white : null,
+              child: Icon(_routeMode ? Icons.close : Icons.directions_boat),
+            ),
+            const SizedBox(height: 12),
+            FloatingActionButton(
+              heroTag: 'loc',
+              onPressed: _followMe,
+              tooltip: 'My location',
+              child: Icon(following ? Icons.my_location : Icons.location_searching),
+            ),
+          ],
+        ),
       ),
       body: Stack(
         children: [
