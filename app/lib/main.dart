@@ -42,9 +42,11 @@ class CanalMapApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Canal Map',
+      title: 'Canal Map: UK Waterways',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: const Color(0xFF2A6FB0)),
+      theme: ThemeData(
+        colorSchemeSeed: const Color(0xFF16302B), // brand deep canal-green
+      ),
       home: const MapScreen(),
     );
   }
@@ -87,6 +89,8 @@ class _MapScreenState extends State<MapScreen> {
   // Live stoppages overlay (Bucket 2) + a freshness label for the UI.
   List<Stoppage> _stoppages = const [];
   String? _stoppagesFreshness;
+
+  double _bearing = 0; // map rotation, drives the compass
 
   // Routing (v1.1). Graph loaded lazily the first time route mode is used.
   RouteGraph? _graph;
@@ -244,6 +248,16 @@ class _MapScreenState extends State<MapScreen> {
 
   void _onMapCreated(MapLibreMapController controller) {
     _controller = controller;
+    controller.addListener(_onCameraChanged);
+  }
+
+  void _onCameraChanged() {
+    final b = _controller?.cameraPosition?.bearing ?? 0;
+    if ((b - _bearing).abs() > 0.5) setState(() => _bearing = b);
+  }
+
+  Future<void> _resetNorth() async {
+    await _controller?.animateCamera(CameraUpdate.bearingTo(0));
   }
 
   /// Runs once the map style is ready: load stoppages (network → cache →
@@ -345,7 +359,7 @@ class _MapScreenState extends State<MapScreen> {
       'canal', _featuresLayerId,
       SymbolLayerProperties(
         iconImage: iconMatch,
-        iconSize: ['interpolate', ['linear'], ['zoom'], 8, 0.38, 13, 0.60, 16, 0.82],
+        iconSize: ['interpolate', ['linear'], ['zoom'], 8, 0.50, 13, 0.80, 16, 1.05],
         // Collision handles decluttering; stoppages (below) reserve space first.
         iconAllowOverlap: false,
         // Names only once zoomed in, so the overview stays clean.
@@ -408,7 +422,7 @@ class _MapScreenState extends State<MapScreen> {
       _stoppagesSourceId, _stoppagesLayerId,
       SymbolLayerProperties(
         iconImage: match,
-        iconSize: ['interpolate', ['linear'], ['zoom'], 8, 0.44, 13, 0.66, 16, 0.9],
+        iconSize: ['interpolate', ['linear'], ['zoom'], 8, 0.58, 13, 0.88, 16, 1.15],
         iconAllowOverlap: true, // closures must always be visible
         iconIgnorePlacement: false, // ...but still block POI icons
       ),
@@ -783,7 +797,40 @@ class _MapScreenState extends State<MapScreen> {
     final following = _tracking != MyLocationTrackingMode.none;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Canal Map'),
+        backgroundColor: const Color(0xFF16302B), // deep canal-green
+        foregroundColor: Colors.white,
+        elevation: 2,
+        titleSpacing: 12,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: const Icon(Icons.directions_boat_filled,
+                  size: 20, color: Color(0xFFE0A92E)), // brand gold
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Canal Map',
+                    style: TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w600, height: 1.05)),
+                Text('UK Waterways',
+                    style: TextStyle(
+                        fontSize: 11,
+                        height: 1.05,
+                        color: Colors.white.withValues(alpha: 0.7),
+                        letterSpacing: 0.3)),
+              ],
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
@@ -840,16 +887,24 @@ class _MapScreenState extends State<MapScreen> {
             compassEnabled: true,
           ),
           const SafeArea(child: _Legend()),
-          if (_stoppagesFreshness != null)
-            SafeArea(
-              child: Align(
-                alignment: Alignment.topRight,
-                child: _FreshnessChip(
-                  label: _stoppagesFreshness!,
-                  count: _stoppages.length,
-                ),
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_stoppagesFreshness != null)
+                    _FreshnessChip(
+                      label: _stoppagesFreshness!,
+                      count: _stoppages.length,
+                    ),
+                  if (_bearing.abs() > 0.5)
+                    _Compass(bearing: _bearing, onTap: _resetNorth),
+                ],
               ),
             ),
+          ),
           if (_routeMode)
             Align(
               alignment: Alignment.bottomCenter,
@@ -1059,6 +1114,36 @@ class _RoutePanel extends StatelessWidget {
           Text(label, style: Theme.of(context).textTheme.bodySmall),
         ],
       );
+}
+
+class _Compass extends StatelessWidget {
+  const _Compass({required this.bearing, required this.onTap});
+  final double bearing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Material(
+        color: Colors.white,
+        elevation: 3,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Transform.rotate(
+              // Rotate the needle opposite the map so N always points north.
+              angle: -bearing * math.pi / 180,
+              child: const Icon(Icons.navigation, size: 22, color: Color(0xFFC0392B)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _DashSwatch extends StatelessWidget {

@@ -1,5 +1,21 @@
 # Canal Map — Build Plan
 
+> **STATUS (v1 + v1.1 complete, in Play closed testing).** Phases 1–7 and the
+> v1.1 routing fast-follow are all built and verified. Notable deltas from the
+> original plan below:
+> - Nationwide from the start of the app (not just a slice); PMTiles built by a
+>   pure-Python tiler with per-zoom simplification (no tippecanoe on Windows).
+> - **Navigable rivers = OSM `boat=yes`**, not a hand-typed whitelist.
+> - Stoppages come from CRT's `/api/stoppage/notices` (reverse-engineered;
+>   needs an `X-Requested-With` header), published daily by a GitHub Action.
+> - Added map **labels** (place names, numbered bridges, POI names) via bundled
+>   font glyphs — all offline.
+> - Locks sourced from `lock=yes` chambers (one per lock), not gate nodes.
+> Remaining ideas: fix cross-component routing gaps; optional online satellite
+> layer (deliberately NOT done — would break offline/£0).
+
+
+
 ## Goal
 A beautiful, offline-first map of the UK's connected navigable network
 — canals AND the navigable rivers narrowboats actually cruise (Thames,

@@ -117,7 +117,9 @@ def _feature(geometry, props):
 def classify_node(tags):
     """Map raw OSM tags to one of our typed feature categories."""
     ww = tags.get("waterway")
-    if ww == "lock_gate":
+    # A lock is one chamber (lock=yes way) — NOT its two gate nodes, which
+    # would double-count every lock. We fetch the chamber via `out center`.
+    if tags.get("lock") == "yes":
         return "lock"
     if ww == "water_point":
         return "water_point"
@@ -250,7 +252,7 @@ def fetch_osm_features():
     [out:json][timeout:600];
     {preamble}
     (
-      node["waterway"="lock_gate"]{sel};
+      way["lock"="yes"]{sel};               // one point per lock chamber
       node["waterway"="water_point"]{sel};
       node["waterway"="sanitary_dump_station"]{sel};
       node["amenity"="pub"]{sel};           // filtered to buffer below

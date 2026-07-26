@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # <versionName>+<versionCode>. Play requires versionCode to strictly increase
 # on EVERY upload — bump the +N before each new bundle.
-version: 1.1.1+3
+version: 1.2.0+4
 
 environment:
   sdk: ^3.12.2
@@ -51,6 +51,17 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# App launcher icon (regenerate with: dart run flutter_launcher_icons).
+# Source PNGs are produced by tool/make_icon.py.
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#16302B"
+  adaptive_icon_foreground: "assets/icon/icon_fg.png"
+  min_sdk_android: 21
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
