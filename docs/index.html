@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canal Map: UK Waterways</title>
+<meta name="description" content="A free, offline map of the UK's connected canals and navigable rivers, for narrowboaters. No ads, no accounts, no tracking.">
+<style>
+  :root { --green:#16302b; --gold:#d9a62a; --cream:#e9e4d0; --ink:#1f2a28; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+         color:var(--ink); line-height:1.6; }
+  a { color:#2a6fb0; }
+  header { background:var(--green); color:#fff; padding:64px 20px; text-align:center; }
+  header .mark { font-size:44px; }
+  header h1 { margin:12px 0 4px; font-size:30px; }
+  header p { margin:0; opacity:.8; letter-spacing:.4px; }
+  .wrap { max-width:760px; margin:0 auto; padding:32px 20px; }
+  .tag { display:inline-block; background:rgba(255,255,255,.12); color:var(--gold);
+         border-radius:20px; padding:6px 14px; font-size:14px; margin-top:16px; }
+  h2 { color:var(--green); margin-top:36px; }
+  ul.feat { list-style:none; padding:0; }
+  ul.feat li { padding:10px 0 10px 30px; position:relative; border-bottom:1px solid #eee; }
+  ul.feat li::before { content:"⚓"; position:absolute; left:0; color:var(--gold); }
+  .note { background:#f4f7f6; border-left:4px solid var(--green); padding:14px 16px;
+          border-radius:6px; font-size:15px; }
+  footer { text-align:center; color:#889; font-size:14px; padding:40px 20px; }
+  footer a { color:#667; }
+</style>
+</head>
+<body>
+<header>
+  <div class="mark">⚓</div>
+  <h1>Canal Map</h1>
+  <p>UK WATERWAYS</p>
+  <div class="tag">Free · Offline · No ads · No tracking</div>
+</header>
+
+<div class="wrap">
+  <p>A beautiful, <strong>fully offline</strong> map of the UK's connected navigable
+  network — canals and the navigable rivers narrowboats actually cruise — for
+  boaters. Everything is bundled in the app, so it keeps working with zero signal
+  for days at a time.</p>
+
+  <h2>What it does</h2>
+  <ul class="feat">
+    <li>Nationwide offline map of canals &amp; navigable rivers</li>
+    <li>Locks, water points, Elsan, pump-out, refuse, pubs and moorings — with clear icons</li>
+    <li>Numbered canal bridges and place names</li>
+    <li>Live Canal &amp; River Trust stoppages &amp; closures (with an offline fallback)</li>
+    <li>Route planning with distance, lock count and estimated journey time</li>
+    <li>Search, “near me”, GPS follow-me and a tidal-hazard overlay</li>
+    <li>A boat-movement log you can export as GPX — handy for continuous cruisers</li>
+  </ul>
+
+  <div class="note">
+    Distances and journey times are estimates, and tidal waters are hazardous —
+    always check current conditions and official notices before setting off.
+  </div>
+
+  <h2>Free, and private</h2>
+  <p>No adverts, no accounts, no analytics, no tracking. The only thing the app
+  ever fetches is a small daily stoppages file; the map itself is always read
+  from your device. See the <a href="privacy.html">privacy policy</a>.</p>
+
+  <h2>Data</h2>
+  <p>Map data © OpenStreetMap contributors (ODbL); facilities and notices from
+  Canal &amp; River Trust Open Data; river facilities from Environment Agency
+  Open Data (OGL). Not affiliated with any of these organisations.</p>
+</div>
+
+<footer>
+  Canal Map: UK Waterways · a personal project ·
+  <a href="privacy.html">Privacy</a>
+</footer>
+</body>
+</html>

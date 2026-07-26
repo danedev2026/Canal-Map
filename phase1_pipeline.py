@@ -60,11 +60,14 @@ def overpass_query(query, retries=4):
         time.sleep(wait)
     raise RuntimeError(f"Overpass failed after {retries} rounds: {last_error}")
 
-# Curated whitelist of navigable rivers (extend as needed).
-# Start small to iterate fast, then widen.
-NAVIGABLE_RIVERS = [
-    "River Thames", "River Wey", "River Nene", "River Great Ouse",
-    "River Trent", "River Severn", "River Avon",  # TODO: disambiguate Avons
+# Navigable rivers are found data-driven (motorboat=yes / ship=yes / named
+# "* Navigation"; see fetch_network). These are the few well-known powered
+# navigations that are UNDER-tagged in OSM (no motorboat tag) — added back by
+# name but STILL gated on boat=yes so non-navigable segments never sneak in.
+# All are unambiguously navigable UK waterways.
+CURATED_NAVIGATIONS = [
+    "River Weaver", "River Medway", "River Witham", "River Ancholme",
+    "River Cam", "River Lark", "River Ouse", "River Nene (old course)",
 ]
 
 BUFFER_METRES = 150  # clip everything to this distance from the water
@@ -194,20 +197,25 @@ def fetch_network():
     """
     canals = osm_ways_to_lines(overpass_query(canal_query))
 
-    # Navigable rivers come primarily from OSM's own navigability tag
-    # (boat=yes) — a data-driven curation that correctly excludes canoe-only /
-    # unnavigable blue lines (boat=no). A hand-written name list alone missed
-    # whole navigations (e.g. the River Stort). The names below are kept as a
-    # belt-and-braces supplement for big rivers with patchy tagging.
-    river_filter = "".join(
-        f'way["waterway"="river"]["name"="{name}"]{sel};' for name in NAVIGABLE_RIVERS
+    # Navigable rivers = powered-boat navigable. OSM's `motorboat=yes` is the
+    # reliable discriminator: real navigations (Thames/Wey/Kennet/Ouse…) carry
+    # it on ~90%+ of ways, while canoe rivers (e.g. the Wye) have it on none.
+    # We ALSO keep any river named "* Navigation" with boat=yes, to catch
+    # CRT navigations (Stort, Lee, etc.) whose segments may lack the motorboat
+    # tag. A plain name whitelist was dropped — it pulled in non-navigable
+    # same-named rivers (every "River Avon", the canoe Wye, etc.).
+    curated = "".join(
+        f'way["waterway"="river"]["boat"="yes"]["name"="{n}"]{sel};'
+        for n in CURATED_NAVIGATIONS
     )
     river_query = f"""
     [out:json][timeout:600];
     {preamble}
     (
-      way["waterway"="river"]["boat"="yes"]{sel};
-      {river_filter}
+      way["waterway"="river"]["motorboat"="yes"]{sel};
+      way["waterway"="river"]["ship"="yes"]{sel};
+      way["waterway"="river"]["boat"="yes"]["name"~"Navigation",i]{sel};
+      {curated}
     );
     out geom;
     """
@@ -346,6 +354,37 @@ def fetch_bridges():
     return feats
 
 
+def fetch_moorings():
+    """Visitor/permissive moorings. OSM tags these with `mooring=*` on nodes or
+    short bankside ways; we skip private/no."""
+    preamble, sel = _region()
+    query = f"""
+    [out:json][timeout:600];
+    {preamble}
+    (
+      node["mooring"]{sel};
+      way["mooring"]{sel};
+    );
+    out center;
+    """
+    feats = []
+    for el in overpass_query(query).get("elements", []):
+        if "lat" in el:
+            lon, lat = el["lon"], el["lat"]
+        elif "center" in el:
+            lon, lat = el["center"]["lon"], el["center"]["lat"]
+        else:
+            continue
+        tags = el.get("tags", {})
+        if tags.get("mooring") in ("no", "private"):
+            continue
+        feats.append(_feature(
+            {"type": "Point", "coordinates": [lon, lat]},
+            {"type": "mooring", "name": tags.get("name"), "source": "osm"},
+        ))
+    return feats
+
+
 def fetch_places():
     """Town/village names for map context labels."""
     preamble, sel = _region()
@@ -478,13 +517,15 @@ if __name__ == "__main__":
     print(f"  tidal ways flagged: {n_tidal}")
     write_geojson("data/network.geojson", network)
 
-    # Bridges sit ON the water, so clip them tight; POIs use the normal buffer.
+    # Bridges + moorings sit ON/beside the water, so clip them tight.
     tight = network_buffer(network, 40)
     bridges = clip_points(fetch_bridges(), tight)
     print(f"  numbered bridges: {len(bridges)}")
+    moorings = clip_points(fetch_moorings(), network_buffer(network, 30))
+    print(f"  moorings: {len(moorings)}")
 
     features = fetch_osm_features() + fetch_crt_facilities()
-    features = clip_to_network(features, network) + bridges
+    features = clip_to_network(features, network) + bridges + moorings
     write_geojson("data/features.geojson", features)
 
     # Place labels get a wider buffer so nearby towns give context.

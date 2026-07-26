@@ -25,9 +25,10 @@ Package `uk.canalmap.canal_map`.
 - Canal & River Trust Open Data — authoritative facilities + the live
   stoppages/notices feed (`/api/stoppage/notices`, needs X-Requested-With).
 - Environment Agency Open Data (OGL) — river facilities where used.
-- **River scope is data-driven:** navigable rivers = OSM `boat=yes` (NOT a
-  hand-typed name list — that missed whole navigations). Tidal sections
-  (OSM `tidal=yes`) are flagged as hazardous.
+- **River scope is data-driven:** navigable rivers = OSM `motorboat=yes` (plus
+  boat=yes rivers named "* Navigation"). NOT a hand-typed name list (pulled in
+  non-navigable same-named rivers) and NOT bare boat=yes (includes canoe rivers
+  like the Wye). Tidal sections (OSM `tidal=yes`) are flagged as hazardous.
 
 ## Architecture rule
 Static/serverless. The app BUNDLES everything and renders from local files:

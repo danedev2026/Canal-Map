@@ -1,7 +1,7 @@
-"""Generate the Canal Map launcher icon from the brand design:
-dark canal-green ground, a cream winding canal, and two lock-gate chevrons
-with gold beam-ends. Produces a full-bleed legacy icon and a transparent
-adaptive foreground. Run: python tool/make_icon.py
+"""NOTE: the SHIPPED icon is the user's own artwork at assets/icon/icon.png
+(do not overwrite it). This script only recreates an approximation for
+reference and writes to assets/icon/icon_generated*.png so it can't clobber
+the real file. Run: python tool/make_icon.py
 """
 import math
 import numpy as np
@@ -65,11 +65,5 @@ def draw_design(bg_transparent):
 if __name__ == "__main__":
     import os
     os.makedirs("assets/icon", exist_ok=True)
-    draw_design(bg_transparent=False).save("assets/icon/icon.png")
-    # Adaptive foreground: emblem on transparent, scaled into the safe zone.
-    fg = draw_design(bg_transparent=True)
-    safe = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    inner = fg.resize((int(S * 0.80), int(S * 0.80)), Image.LANCZOS)
-    safe.alpha_composite(inner, (int(S * 0.10), int(S * 0.10)))
-    safe.save("assets/icon/icon_fg.png")
-    print("wrote assets/icon/icon.png and icon_fg.png")
+    draw_design(bg_transparent=False).save("assets/icon/icon_generated.png")
+    print("wrote assets/icon/icon_generated.png (reference only; NOT shipped)")

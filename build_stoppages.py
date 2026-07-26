@@ -40,7 +40,8 @@ API_HEADERS = {
     "Referer": "https://canalrivertrust.org.uk/notices",
 }
 FIELDS = "title,region,waterways,path,typeId,reasonId,programmeId,start,end,state,image"
-WINDOW_DAYS = 120  # current + upcoming notices
+WINDOW_DAYS = 300  # current + upcoming (incl. winter works); app toggles future.
+# NB: the CRT API rejects ranges around a year (~365d 500s); 300 is safely under.
 OUT_PATH = "data/stoppages.json"
 
 # CRT typeId -> our marker state. Towpath-only types (3, 8) are dropped as they

@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # <versionName>+<versionCode>. Play requires versionCode to strictly increase
 # on EVERY upload — bump the +N before each new bundle.
-version: 1.2.0+4
+version: 1.3.0+5
 
 environment:
   sdk: ^3.12.2
@@ -40,6 +40,7 @@ dependencies:
   path_provider: ^2.1.6
   permission_handler: ^12.0.3
   http: ^1.6.0
+  share_plus: ^13.3.0
 
 dev_dependencies:
   flutter_test:
@@ -53,13 +54,14 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
 
-# App launcher icon (regenerate with: dart run flutter_launcher_icons).
-# Source PNGs are produced by tool/make_icon.py.
+# App launcher icon. icon.png is the user's exact Play Store artwork;
+# icon_fg.png is that image scaled onto transparent for the adaptive layer
+# (background colour sampled from the artwork's corner).
 flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/icon/icon.png"
-  adaptive_icon_background: "#16302B"
+  adaptive_icon_background: "#0F2C2C"
   adaptive_icon_foreground: "assets/icon/icon_fg.png"
   min_sdk_android: 21
 

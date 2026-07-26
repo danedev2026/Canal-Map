@@ -9,8 +9,11 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'attribution.dart';
+import 'boat_log.dart';
+import 'boat_log_screen.dart';
 import 'routing.dart';
 import 'stoppages.dart';
 
@@ -32,6 +35,7 @@ const Map<String, PoiType> kPoiTypes = {
   'pumpout': PoiType('Pump-out', Color(0xFF8E44AD), Icons.plumbing),
   'refuse': PoiType('Refuse disposal', Color(0xFF7F8C8D), Icons.delete),
   'pub': PoiType('Pub', Color(0xFFE67E22), Icons.sports_bar),
+  'mooring': PoiType('Mooring', Color(0xFF00897B), Icons.anchor),
 };
 
 const _defaultPoiColor = Color(0xFF555555);
@@ -89,6 +93,23 @@ class _MapScreenState extends State<MapScreen> {
   // Live stoppages overlay (Bucket 2) + a freshness label for the UI.
   List<Stoppage> _stoppages = const [];
   String? _stoppagesFreshness;
+  bool _showPlanned = false; // future/winter stoppages hidden by default
+
+  /// Stoppages to draw: by default only those already in effect; with the
+  /// toggle on, also future/planned ones (e.g. winter works).
+  List<Stoppage> get _visibleStoppages {
+    if (_showPlanned) return _stoppages;
+    final now = DateTime.now();
+    return _stoppages.where((s) {
+      final start = DateTime.tryParse(s.start);
+      return start == null || !start.isAfter(now);
+    }).toList();
+  }
+
+  Map<String, dynamic> _stoppagesFc(List<Stoppage> list) => {
+        'type': 'FeatureCollection',
+        'features': list.map((s) => s.toFeature()).toList(),
+      };
 
   double _bearing = 0; // map rotation, drives the compass
 
@@ -260,6 +281,59 @@ class _MapScreenState extends State<MapScreen> {
     await _controller?.animateCamera(CameraUpdate.bearingTo(0));
   }
 
+  /// Current GPS position as (lat, lon), or null if unavailable. Ensures the
+  /// location permission and turns the map's location component on.
+  Future<(double, double)?> _currentLatLon() async {
+    if (!await _ensureLocationPermission()) return null;
+    if (mounted) setState(() => _locationEnabled = true);
+    final ll = await _controller?.requestMyLocationLatLng();
+    return ll == null ? null : (ll.latitude, ll.longitude);
+  }
+
+  Future<void> _logMyPosition() async {
+    final loc = await _currentLatLon();
+    if (!mounted) return;
+    if (loc == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No GPS fix yet — try again in a moment.')));
+      return;
+    }
+    await BoatLog.add(BoatLogEntry(DateTime.now(), loc.$1, loc.$2));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Position logged to your boat log')));
+    }
+  }
+
+  void _openMenu(String v) {
+    switch (v) {
+      case 'planned':
+        _togglePlanned();
+      case 'log':
+        _logMyPosition();
+      case 'logbook':
+        Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => BoatLogScreen(getLocation: _currentLatLon)));
+      case 'about':
+        Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const AttributionScreen()));
+    }
+  }
+
+  Future<void> _togglePlanned() async {
+    setState(() => _showPlanned = !_showPlanned);
+    await _controller?.setGeoJsonSource(
+        _stoppagesSourceId, _stoppagesFc(_visibleStoppages));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 2),
+        content: Text(_showPlanned
+            ? 'Showing planned/future stoppages too'
+            : 'Showing current stoppages only'),
+      ));
+    }
+  }
+
   /// Runs once the map style is ready: load stoppages (network → cache →
   /// bundle) and draw them as an overlay. Never blocks the map.
   Future<void> _onStyleLoaded() async {
@@ -277,7 +351,8 @@ class _MapScreenState extends State<MapScreen> {
     if (controller == null) return;
 
     await _addPoiLayer(controller);
-    await controller.addGeoJsonSource(_stoppagesSourceId, result.data.toGeoJson());
+    await controller.addGeoJsonSource(
+        _stoppagesSourceId, _stoppagesFc(_visibleStoppages));
     await _addStoppageLayer(controller);
 
     // Empty route layers, updated on demand when a route is computed.
@@ -508,14 +583,19 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
     // Second tap sets the destination and computes.
-    setState(() {
-      _routeEnd = p;
-      _routing = true;
-    });
+    setState(() => _routeEnd = p);
+    await _computeRoute();
+  }
+
+  /// Compute + draw the route for the current start/end. Shared by tap-routing
+  /// and "Route here" from a POI.
+  Future<void> _computeRoute() async {
+    final graph = _graph;
+    if (graph == null || _routeStart == null || _routeEnd == null) return;
+    setState(() => _routing = true);
     await _drawRouteEnds();
 
-    final graph = _graph;
-    final result = graph?.route(_routeStart!, _routeEnd!);
+    final result = graph.route(_routeStart!, _routeEnd!);
     if (!mounted) return;
     setState(() {
       _route = result;
@@ -532,11 +612,119 @@ class _MapScreenState extends State<MapScreen> {
                 'geometry': {
                   'type': 'LineString',
                   'coordinates':
-                      result.polyline.map((p) => [p.longitude, p.latitude]).toList(),
+                      result.polyline.map((q) => [q.longitude, q.latitude]).toList(),
                 },
               }
             ],
     });
+  }
+
+  Future<void> _exportRoute() async {
+    final r = _route;
+    if (r == null) return;
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/canal-map-route.gpx');
+    await file.writeAsString(r.toGpx(), flush: true);
+    final h = r.eta.inHours, m = r.eta.inMinutes % 60;
+    await SharePlus.instance.share(ShareParams(
+      files: [XFile(file.path, mimeType: 'application/gpx+xml')],
+      subject: 'Canal Map route',
+      text: 'Route: ${r.miles.toStringAsFixed(1)} miles, ${r.locks} locks, '
+          '~${h > 0 ? '${h}h ' : ''}${m}m cruising.',
+    ));
+  }
+
+  /// A fuller journey plan: the figures broken out, plus save/share.
+  void _showRouteDetails() {
+    final r = _route;
+    if (r == null) return;
+    final h = r.eta.inHours, m = r.eta.inMinutes % 60;
+    final eta = h > 0 ? '${h}h ${m}m' : '${m}m';
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Journey plan', style: Theme.of(ctx).textTheme.titleLarge),
+              const SizedBox(height: 16),
+              _planRow(ctx, Icons.straighten, 'Distance',
+                  '${r.miles.toStringAsFixed(1)} miles (${(r.metres / 1000).toStringAsFixed(1)} km)'),
+              _planRow(ctx, Icons.lock, 'Locks', '${r.locks}'),
+              _planRow(ctx, Icons.schedule, 'Estimated time',
+                  '$eta  (≈3 mph + ${_minsPerLockLabel()}/lock)'),
+              const SizedBox(height: 8),
+              Text(
+                'Estimate only — check conditions and notices before you set off.',
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  FilledButton.icon(
+                    icon: const Icon(Icons.ios_share, size: 18),
+                    label: const Text('Save / share (GPX)'),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _exportRoute();
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _minsPerLockLabel() => '10 min';
+
+  Widget _planRow(BuildContext ctx, IconData icon, String label, String value) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: Theme.of(ctx).hintColor),
+            const SizedBox(width: 12),
+            Text('$label:  ', style: Theme.of(ctx).textTheme.bodyMedium),
+            Expanded(
+              child: Text(value,
+                  style: Theme.of(ctx)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      );
+
+  /// "Route here": from the user's current GPS to a tapped feature.
+  Future<void> _routeToPoint(LatLng dest) async {
+    if (!await _ensureLocationPermission()) return;
+    if (!mounted) return;
+    setState(() => _locationEnabled = true);
+    final here = await _controller?.requestMyLocationLatLng();
+    if (!mounted) return;
+    if (here == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Waiting for GPS — try again in a moment.')));
+      return;
+    }
+    _graph ??= await RouteGraph.load('assets/routing.graph');
+    if (!mounted) return;
+    setState(() {
+      _routeMode = true;
+      _routeStart = here;
+      _routeEnd = dest;
+      _routeError = null;
+    });
+    await _computeRoute();
+    await _controller?.animateCamera(CameraUpdate.newLatLngZoom(dest, 13));
   }
 
   Future<void> _drawRouteEnds() async {
@@ -572,7 +760,7 @@ class _MapScreenState extends State<MapScreen> {
     final target = LatLng(picked.lat, picked.lon);
     await _controller?.animateCamera(CameraUpdate.newLatLngZoom(target, 15));
     if (picked.type != 'waterway') {
-      _showFeatureSheet({'type': picked.type, 'name': picked.name});
+      _showFeatureSheet({'type': picked.type, 'name': picked.name}, target);
     }
   }
 
@@ -630,13 +818,22 @@ class _MapScreenState extends State<MapScreen> {
     final features = await controller.queryRenderedFeaturesInRect(
       rect, [_featuresLayerId], null);
     if (features.isEmpty || !mounted) return;
-    _showFeatureSheet(_propsOf(features.first));
+    _showFeatureSheet(_propsOf(features.first), _coordOf(features.first, latLng));
   }
 
   Map<String, dynamic> _propsOf(dynamic feature) =>
       (feature is Map && feature['properties'] is Map)
           ? Map<String, dynamic>.from(feature['properties'] as Map)
           : <String, dynamic>{};
+
+  LatLng _coordOf(dynamic feature, LatLng fallback) {
+    try {
+      final c = (feature['geometry'] as Map)['coordinates'] as List;
+      return LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble());
+    } catch (_) {
+      return fallback;
+    }
+  }
 
   void _showStoppageSheet(Map<String, dynamic> p) {
     final state = (p['state'] ?? '').toString();
@@ -704,7 +901,7 @@ class _MapScreenState extends State<MapScreen> {
         ),
       );
 
-  void _showFeatureSheet(Map<String, dynamic> props) {
+  void _showFeatureSheet(Map<String, dynamic> props, LatLng location) {
     final typeKey = (props['type'] ?? '').toString();
     final meta = kPoiTypes[typeKey];
     final name = (props['name'] ?? '').toString().trim();
@@ -752,6 +949,18 @@ class _MapScreenState extends State<MapScreen> {
                 Text('Source: $sourceLabel',
                     style: Theme.of(ctx).textTheme.bodySmall),
               ],
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.tonalIcon(
+                  icon: const Icon(Icons.directions_boat, size: 18),
+                  label: const Text('Route here'),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _routeToPoint(location);
+                  },
+                ),
+              ),
             ],
           ),
         ),
@@ -837,12 +1046,38 @@ class _MapScreenState extends State<MapScreen> {
             tooltip: 'Search places & waterways',
             onPressed: _searchEntries.isEmpty ? null : _openSearch,
           ),
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            tooltip: 'About & data sources',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AttributionScreen()),
-            ),
+          PopupMenuButton<String>(
+            tooltip: 'More',
+            onSelected: _openMenu,
+            itemBuilder: (_) => [
+              CheckedPopupMenuItem(
+                value: 'planned',
+                checked: _showPlanned,
+                child: const Text('Show planned/future stoppages'),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'log',
+                child: ListTile(
+                  leading: Icon(Icons.add_location_alt),
+                  title: Text('Log my position'),
+                  contentPadding: EdgeInsets.zero),
+              ),
+              const PopupMenuItem(
+                value: 'logbook',
+                child: ListTile(
+                  leading: Icon(Icons.menu_book),
+                  title: Text('Boat log'),
+                  contentPadding: EdgeInsets.zero),
+              ),
+              const PopupMenuItem(
+                value: 'about',
+                child: ListTile(
+                  leading: Icon(Icons.info_outline),
+                  title: Text('About & data sources'),
+                  contentPadding: EdgeInsets.zero),
+              ),
+            ],
           ),
         ],
       ),
@@ -913,6 +1148,7 @@ class _MapScreenState extends State<MapScreen> {
                 route: _route,
                 error: _routeError,
                 hasStart: _routeStart != null,
+                onTap: _route != null ? _showRouteDetails : null,
               ),
             ),
         ],
@@ -1057,12 +1293,14 @@ class _RoutePanel extends StatelessWidget {
     required this.route,
     required this.error,
     required this.hasStart,
+    this.onTap,
   });
 
   final bool routing;
   final RouteResult? route;
   final String? error;
   final bool hasStart;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1080,12 +1318,20 @@ class _RoutePanel extends StatelessWidget {
       final h = route!.eta.inHours;
       final m = route!.eta.inMinutes % 60;
       final eta = h > 0 ? '${h}h ${m}m' : '${m}m';
-      body = Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+      body = Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _stat(context, '${route!.miles.toStringAsFixed(1)} mi', 'distance'),
-          _stat(context, '${route!.locks}', 'locks'),
-          _stat(context, eta, 'approx time'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _stat(context, '${route!.miles.toStringAsFixed(1)} mi', 'distance'),
+              _stat(context, '${route!.locks}', 'locks'),
+              _stat(context, eta, 'approx time'),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text('Tap for the full plan & to save',
+              style: Theme.of(context).textTheme.bodySmall),
         ],
       );
     } else {
@@ -1098,9 +1344,12 @@ class _RoutePanel extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Card(
           elevation: 4,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: body,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: body,
+            ),
           ),
         ),
       ),

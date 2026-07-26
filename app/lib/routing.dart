@@ -16,6 +16,23 @@ class RouteResult {
   final Duration eta;
 
   double get miles => metres / 1609.34;
+
+  /// The route as a GPX track — opens in other boating/mapping apps.
+  String toGpx() {
+    final b = StringBuffer()
+      ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
+      ..writeln('<gpx version="1.1" creator="Canal Map: UK Waterways" '
+          'xmlns="http://www.topografix.com/GPX/1/1">')
+      ..writeln('  <trk><name>Canal Map route</name><trkseg>');
+    for (final p in polyline) {
+      b.writeln('    <trkpt lat="${p.latitude.toStringAsFixed(6)}" '
+          'lon="${p.longitude.toStringAsFixed(6)}"></trkpt>');
+    }
+    b
+      ..writeln('  </trkseg></trk>')
+      ..writeln('</gpx>');
+    return b.toString();
+  }
 }
 
 /// On-device routable graph, loaded from the bundled binary (see
