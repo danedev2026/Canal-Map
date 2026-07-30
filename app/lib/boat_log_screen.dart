@@ -51,14 +51,50 @@ class _BoatLogScreenState extends State<BoatLogScreen> {
 
   Future<void> _export() async {
     if (_entries.isEmpty) return;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (c) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+                title: Text('Export boat log'),
+                subtitle: Text('Choose a format')),
+            ListTile(
+              leading: const Icon(Icons.table_view),
+              title: const Text('Spreadsheet (CSV)'),
+              subtitle: const Text('Opens in any app — best for viewing / proof'),
+              onTap: () => Navigator.pop(c, 'csv'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.map_outlined),
+              title: const Text('GPX'),
+              subtitle: const Text('For importing into mapping / boating apps'),
+              onTap: () => Navigator.pop(c, 'gpx'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null) return;
+
     final dir = await getTemporaryDirectory();
     final stamp = DateTime.now().toIso8601String().split('T').first;
-    final file = File('${dir.path}/canal-map-boat-log-$stamp.gpx');
-    await file.writeAsString(BoatLog.toGpx(_entries), flush: true);
+    final File file;
+    final String mime;
+    if (choice == 'csv') {
+      file = File('${dir.path}/canal-map-boat-log-$stamp.csv');
+      await file.writeAsString(BoatLog.toCsv(_entries), flush: true);
+      mime = 'text/csv';
+    } else {
+      file = File('${dir.path}/canal-map-boat-log-$stamp.gpx');
+      await file.writeAsString(BoatLog.toGpx(_entries), flush: true);
+      mime = 'application/gpx+xml';
+    }
     await SharePlus.instance.share(ShareParams(
-      files: [XFile(file.path, mimeType: 'application/gpx+xml')],
+      files: [XFile(file.path, mimeType: mime)],
       subject: 'Boat movement log',
-      text: 'Boat movement log exported from Canal Map (${_entries.length} positions).',
+      text: 'Boat movement log from Canal Map (${_entries.length} positions).',
     ));
   }
 

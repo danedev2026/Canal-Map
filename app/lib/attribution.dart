@@ -34,6 +34,11 @@ class AttributionScreen extends StatelessWidget {
             title: 'Environment Agency Open Data (OGL)',
             body: 'River navigation facilities on EA-managed waters, where used.',
           ),
+          _Source(
+            title: 'Esri World Imagery',
+            body: 'Optional satellite basemap (only when you turn it on and are '
+                'online). Imagery © Esri, Maxar, Earthstar Geographics.',
+          ),
           const Divider(height: 32),
           Text('Privacy', style: t.titleMedium),
           const SizedBox(height: 4),

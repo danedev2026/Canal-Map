@@ -112,6 +112,7 @@ class _MapScreenState extends State<MapScreen> {
       };
 
   double _bearing = 0; // map rotation, drives the compass
+  bool _satellite = false; // online aerial imagery basemap
 
   // Routing (v1.1). Graph loaded lazily the first time route mode is used.
   RouteGraph? _graph;
@@ -305,8 +306,22 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  Future<void> _toggleSatellite() async {
+    setState(() => _satellite = !_satellite);
+    await _controller?.setLayerVisibility('satellite', _satellite);
+    if (mounted && _satellite) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        duration: Duration(seconds: 3),
+        content: Text('Aerial imagery needs a data connection; '
+            'the map still works offline without it.'),
+      ));
+    }
+  }
+
   void _openMenu(String v) {
     switch (v) {
+      case 'satellite':
+        _toggleSatellite();
       case 'planned':
         _togglePlanned();
       case 'log':
@@ -350,6 +365,7 @@ class _MapScreenState extends State<MapScreen> {
     final controller = _controller;
     if (controller == null) return;
 
+    await _addSatellite(controller);
     await _addPoiLayer(controller);
     await controller.addGeoJsonSource(
         _stoppagesSourceId, _stoppagesFc(_visibleStoppages));
@@ -384,6 +400,30 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Map<String, dynamic> _emptyFc() => {'type': 'FeatureCollection', 'features': []};
+
+  /// Optional online aerial imagery (Esri World Imagery — free, no API key).
+  /// Added beneath the network, hidden by default; toggled from the menu. Only
+  /// loads when online, so the offline-first core is unaffected.
+  Future<void> _addSatellite(MapLibreMapController controller) async {
+    await controller.addSource(
+      'satellite',
+      const RasterSourceProperties(
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/'
+              'World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        ],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
+      ),
+    );
+    await controller.addRasterLayer(
+      'satellite', 'satellite',
+      const RasterLayerProperties(),
+      belowLayerId: 'waterway', // canals + POIs stay on top
+    );
+    await controller.setLayerVisibility('satellite', false);
+  }
 
   /// Render a Material icon glyph to a PNG (white disc + coloured ring + glyph)
   /// so POIs read clearly on the map — no bundled image assets needed.
@@ -634,55 +674,133 @@ class _MapScreenState extends State<MapScreen> {
     ));
   }
 
-  /// A fuller journey plan: the figures broken out, plus save/share.
+  /// A fuller journey plan: figures, the waterways you travel and the
+  /// facilities you pass in order, plus save/share.
   void _showRouteDetails() {
     final r = _route;
     if (r == null) return;
     final h = r.eta.inHours, m = r.eta.inMinutes % 60;
     final eta = h > 0 ? '${h}h ${m}m' : '${m}m';
+
+    final itinerary = _routeItinerary(r.polyline);
+    // Distinct waterways in order (dedupe repeats).
+    final waterways = <String>[];
+    for (final it in itinerary.where((i) => i.entry.type == 'waterway')) {
+      if (waterways.isEmpty || waterways.last != it.entry.name) {
+        waterways.add(it.entry.name);
+      }
+    }
+    // Facilities you pass, in order.
+    final facilities =
+        itinerary.where((i) => kPoiTypes.containsKey(i.entry.type)).toList();
+
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Padding(
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        maxChildSize: 0.92,
+        builder: (ctx, scroll) => ListView(
+          controller: scroll,
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Journey plan', style: Theme.of(ctx).textTheme.titleLarge),
-              const SizedBox(height: 16),
-              _planRow(ctx, Icons.straighten, 'Distance',
-                  '${r.miles.toStringAsFixed(1)} miles (${(r.metres / 1000).toStringAsFixed(1)} km)'),
-              _planRow(ctx, Icons.lock, 'Locks', '${r.locks}'),
-              _planRow(ctx, Icons.schedule, 'Estimated time',
-                  '$eta  (≈3 mph + ${_minsPerLockLabel()}/lock)'),
-              const SizedBox(height: 8),
-              Text(
-                'Estimate only — check conditions and notices before you set off.',
-                style: Theme.of(ctx).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  FilledButton.icon(
-                    icon: const Icon(Icons.ios_share, size: 18),
-                    label: const Text('Save / share (GPX)'),
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _exportRoute();
-                    },
-                  ),
-                ],
-              ),
+          children: [
+            Text('Journey plan', style: Theme.of(ctx).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            _planRow(ctx, Icons.straighten, 'Distance',
+                '${r.miles.toStringAsFixed(1)} mi (${(r.metres / 1000).toStringAsFixed(1)} km)'),
+            _planRow(ctx, Icons.lock, 'Locks', '${r.locks}'),
+            _planRow(ctx, Icons.schedule, 'Estimated time',
+                '$eta  (≈3 mph + ${_minsPerLockLabel()}/lock)'),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              icon: const Icon(Icons.ios_share, size: 18),
+              label: const Text('Save / share route (GPX)'),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _exportRoute();
+              },
+            ),
+            if (waterways.isNotEmpty) ...[
+              const Divider(height: 32),
+              Text('Waterways', style: Theme.of(ctx).textTheme.titleMedium),
+              const SizedBox(height: 6),
+              Text(waterways.join('  →  '),
+                  style: Theme.of(ctx).textTheme.bodyMedium),
             ],
-          ),
+            const Divider(height: 32),
+            Text('Along the way (${facilities.length})',
+                style: Theme.of(ctx).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            if (facilities.isEmpty)
+              Text('No mapped facilities within 300 m of this route.',
+                  style: Theme.of(ctx).textTheme.bodySmall)
+            else
+              ...facilities.map((it) {
+                final meta = kPoiTypes[it.entry.type]!;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: Icon(meta.icon, color: meta.color, size: 22),
+                  title: Text(it.entry.name.isEmpty ? meta.label : it.entry.name),
+                  subtitle: Text(meta.label),
+                  trailing: Text('${it.miles.toStringAsFixed(1)} mi',
+                      style: Theme.of(ctx).textTheme.bodySmall),
+                );
+              }),
+            const SizedBox(height: 8),
+            Text('Estimate only — check conditions and notices before you set off.',
+                style: Theme.of(ctx).textTheme.bodySmall),
+          ],
         ),
       ),
     );
   }
 
   String _minsPerLockLabel() => '10 min';
+
+  /// Search-index entries (waterways + facilities) that lie within ~300 m of
+  /// the route, ordered by how far along the route they are. Powers the
+  /// detailed journey plan without needing the graph to carry names.
+  List<({SearchEntry entry, double miles})> _routeItinerary(List<LatLng> poly) {
+    if (poly.length < 2) return const [];
+    final cum = List<double>.filled(poly.length, 0);
+    for (var i = 1; i < poly.length; i++) {
+      cum[i] = cum[i - 1] +
+          _haversineMetres(poly[i - 1].latitude, poly[i - 1].longitude,
+              poly[i].latitude, poly[i].longitude);
+    }
+    var minLa = 90.0, maxLa = -90.0, minLo = 180.0, maxLo = -180.0;
+    for (final p in poly) {
+      minLa = math.min(minLa, p.latitude);
+      maxLa = math.max(maxLa, p.latitude);
+      minLo = math.min(minLo, p.longitude);
+      maxLo = math.max(maxLo, p.longitude);
+    }
+    final step = (poly.length / 600).ceil().clamp(1, poly.length);
+    const margin = 0.01, thresholdM = 300.0;
+    final out = <({SearchEntry entry, double miles})>[];
+    for (final e in _searchEntries) {
+      if (e.lat < minLa - margin || e.lat > maxLa + margin ||
+          e.lon < minLo - margin || e.lon > maxLo + margin) {
+        continue;
+      }
+      var best = double.infinity;
+      var bestIdx = 0;
+      for (var i = 0; i < poly.length; i += step) {
+        final d = _haversineMetres(
+            e.lat, e.lon, poly[i].latitude, poly[i].longitude);
+        if (d < best) {
+          best = d;
+          bestIdx = i;
+        }
+      }
+      if (best <= thresholdM) out.add((entry: e, miles: cum[bestIdx] / 1609.34));
+    }
+    out.sort((a, b) => a.miles.compareTo(b.miles));
+    return out;
+  }
 
   Widget _planRow(BuildContext ctx, IconData icon, String label, String value) =>
       Padding(
@@ -1050,6 +1168,11 @@ class _MapScreenState extends State<MapScreen> {
             tooltip: 'More',
             onSelected: _openMenu,
             itemBuilder: (_) => [
+              CheckedPopupMenuItem(
+                value: 'satellite',
+                checked: _satellite,
+                child: const Text('Satellite imagery (needs data)'),
+              ),
               CheckedPopupMenuItem(
                 value: 'planned',
                 checked: _showPlanned,

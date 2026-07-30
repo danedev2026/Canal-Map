@@ -86,6 +86,19 @@ class BoatLog {
     return b.toString();
   }
 
+  /// CSV — opens in any spreadsheet, email preview or text viewer (unlike GPX,
+  /// which needs a mapping app). Best for viewing the movement record as proof.
+  static String toCsv(List<BoatLogEntry> entries) {
+    final b = StringBuffer('Date,Time,Latitude,Longitude\n');
+    final chrono = [...entries]..sort((a, b) => a.time.compareTo(b.time));
+    for (final e in chrono) {
+      final s = _stamp(e.time).split(' ');
+      b.writeln('${s[0]},${s.length > 1 ? s[1] : ''},'
+          '${e.lat.toStringAsFixed(6)},${e.lon.toStringAsFixed(6)}');
+    }
+    return b.toString();
+  }
+
   static String _stamp(DateTime t) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${t.year}-${two(t.month)}-${two(t.day)} ${two(t.hour)}:${two(t.minute)}';
