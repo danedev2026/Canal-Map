@@ -1,16 +1,20 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import 'boat_log.dart';
+import 'exporter.dart';
 
-/// View / add / export the boat movement log. `getLocation` returns the current
-/// (lat, lon) or null; provided by the map screen (which owns location).
+/// View / add / edit / export the boat movement log. [getLocation] returns the
+/// current (lat, lon) or null; [nearestPlace] turns a position into a short
+/// human label ("near Braunston"). Both are supplied by the map screen, which
+/// owns location and the search index.
 class BoatLogScreen extends StatefulWidget {
-  const BoatLogScreen({super.key, required this.getLocation});
+  const BoatLogScreen({
+    super.key,
+    required this.getLocation,
+    required this.nearestPlace,
+  });
   final Future<(double, double)?> Function() getLocation;
+  final String Function(double lat, double lon) nearestPlace;
 
   @override
   State<BoatLogScreen> createState() => _BoatLogScreenState();
@@ -41,11 +45,48 @@ class _BoatLogScreenState extends State<BoatLogScreen> {
           content: Text('No GPS fix yet — try again in a moment.')));
       return;
     }
-    await BoatLog.add(BoatLogEntry(DateTime.now(), loc.$1, loc.$2));
+    final place = widget.nearestPlace(loc.$1, loc.$2);
+    await BoatLog.add(BoatLogEntry(DateTime.now(), loc.$1, loc.$2, place: place));
     await _reload();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Position logged')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(place.isEmpty ? 'Position logged' : 'Logged $place')));
+    }
+  }
+
+  Future<void> _editNote(BoatLogEntry e) async {
+    final controller = TextEditingController(text: e.note);
+    final note = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Note'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: 'e.g. moored above the top lock',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, controller.text.trim()),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (note == null) return;
+    await BoatLog.update(e.copyWith(note: note));
+    await _reload();
+  }
+
+  Future<void> _deleteOne(BoatLogEntry e) async {
+    await BoatLog.delete(e);
+    await _reload();
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Entry deleted')));
     }
   }
 
@@ -76,26 +117,28 @@ class _BoatLogScreenState extends State<BoatLogScreen> {
         ),
       ),
     );
-    if (choice == null) return;
+    if (choice == null || !mounted) return;
 
-    final dir = await getTemporaryDirectory();
     final stamp = DateTime.now().toIso8601String().split('T').first;
-    final File file;
-    final String mime;
     if (choice == 'csv') {
-      file = File('${dir.path}/canal-map-boat-log-$stamp.csv');
-      await file.writeAsString(BoatLog.toCsv(_entries), flush: true);
-      mime = 'text/csv';
+      await Exporter.saveOrShare(
+        context,
+        filename: 'canal-map-boat-log-$stamp.csv',
+        content: BoatLog.toCsv(_entries),
+        mimeType: 'text/csv',
+        shareSubject: 'Boat movement log',
+        shareText: 'Boat movement log from Canal Map (${_entries.length} positions).',
+      );
     } else {
-      file = File('${dir.path}/canal-map-boat-log-$stamp.gpx');
-      await file.writeAsString(BoatLog.toGpx(_entries), flush: true);
-      mime = 'application/gpx+xml';
+      await Exporter.saveOrShare(
+        context,
+        filename: 'canal-map-boat-log-$stamp.gpx',
+        content: BoatLog.toGpx(_entries),
+        mimeType: 'application/gpx+xml',
+        shareSubject: 'Boat movement log',
+        shareText: 'Boat movement log from Canal Map (${_entries.length} positions).',
+      );
     }
-    await SharePlus.instance.share(ShareParams(
-      files: [XFile(file.path, mimeType: mime)],
-      subject: 'Boat movement log',
-      text: 'Boat movement log from Canal Map (${_entries.length} positions).',
-    ));
   }
 
   Future<void> _clearAll() async {
@@ -131,12 +174,12 @@ class _BoatLogScreenState extends State<BoatLogScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.ios_share),
-            tooltip: 'Export as GPX',
+            tooltip: 'Export',
             onPressed: _entries.isEmpty ? null : _export,
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Clear log',
+            icon: const Icon(Icons.delete_sweep_outlined),
+            tooltip: 'Clear whole log',
             onPressed: _entries.isEmpty ? null : _clearAll,
           ),
         ],
@@ -165,11 +208,48 @@ class _BoatLogScreenState extends State<BoatLogScreen> {
               separatorBuilder: (context, index) => const Divider(height: 1),
               itemBuilder: (ctx, i) {
                 final e = _entries[i];
-                return ListTile(
-                  leading: const Icon(Icons.place_outlined),
-                  title: Text(_fmt(e.time)),
-                  subtitle: Text(
-                      '${e.lat.toStringAsFixed(5)}, ${e.lon.toStringAsFixed(5)}'),
+                final coords =
+                    '${e.lat.toStringAsFixed(5)}, ${e.lon.toStringAsFixed(5)}';
+                final subtitleLines = <String>[
+                  if (e.place.isNotEmpty) e.place,
+                  coords,
+                  if (e.note.isNotEmpty) '“${e.note}”',
+                ];
+                return Dismissible(
+                  key: ValueKey('${e.time.toIso8601String()}_${e.lat}'),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    color: const Color(0xFFC62828),
+                    padding: const EdgeInsets.only(right: 20),
+                    child: const Icon(Icons.delete, color: Colors.white),
+                  ),
+                  confirmDismiss: (_) async {
+                    await _deleteOne(e);
+                    return false; // _reload rebuilds the list from disk
+                  },
+                  child: ListTile(
+                    leading: const Icon(Icons.place_outlined),
+                    title: Text(_fmt(e.time)),
+                    subtitle: Text(subtitleLines.join('\n')),
+                    isThreeLine: subtitleLines.length > 2,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_note),
+                          tooltip: 'Add / edit note',
+                          onPressed: () => _editNote(e),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          tooltip: 'Delete this entry',
+                          onPressed: () => _deleteOne(e),
+                        ),
+                      ],
+                    ),
+                    onTap: () => _editNote(e),
+                  ),
                 );
               },
             ),

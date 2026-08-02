@@ -5,20 +5,35 @@ import 'package:path_provider/path_provider.dart';
 
 /// A single logged boat position — the evidence a continuous cruiser keeps to
 /// show the boat has moved. Stored locally only; never sent anywhere.
+/// [place] is an auto-filled nearest-landmark label (e.g. "near Braunston");
+/// [note] is the boater's own free text (e.g. "moored above top lock").
 class BoatLogEntry {
-  BoatLogEntry(this.time, this.lat, this.lon, {this.note = ''});
+  BoatLogEntry(this.time, this.lat, this.lon, {this.place = '', this.note = ''});
   final DateTime time;
   final double lat;
   final double lon;
+  final String place;
   final String note;
 
-  Map<String, dynamic> toJson() =>
-      {'t': time.toIso8601String(), 'lat': lat, 'lon': lon, 'note': note};
+  BoatLogEntry copyWith({String? place, String? note}) => BoatLogEntry(
+        time, lat, lon,
+        place: place ?? this.place,
+        note: note ?? this.note,
+      );
+
+  Map<String, dynamic> toJson() => {
+        't': time.toIso8601String(),
+        'lat': lat,
+        'lon': lon,
+        'place': place,
+        'note': note,
+      };
 
   factory BoatLogEntry.fromJson(Map<String, dynamic> j) => BoatLogEntry(
         DateTime.parse(j['t'] as String),
         (j['lat'] as num).toDouble(),
         (j['lon'] as num).toDouble(),
+        place: (j['place'] ?? '') as String,
         note: (j['note'] ?? '') as String,
       );
 }
@@ -59,6 +74,19 @@ class BoatLog {
     await _write(entries);
   }
 
+  /// Replace the entry with the same timestamp (used when the boater edits its
+  /// note). Matches on time + position so it's stable across reloads.
+  static Future<void> update(BoatLogEntry entry) async {
+    final entries = await load();
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].time == entry.time && entries[i].lat == entry.lat) {
+        entries[i] = entry;
+        break;
+      }
+    }
+    await _write(entries);
+  }
+
   static Future<void> _write(List<BoatLogEntry> entries) async {
     final f = await _file();
     await f.writeAsString(
@@ -75,12 +103,14 @@ class BoatLog {
     final chrono = [...entries]..sort((a, b) => a.time.compareTo(b.time));
     for (final e in chrono) {
       final t = e.time.toUtc().toIso8601String();
+      final desc = [e.place, e.note].where((s) => s.isNotEmpty).join(' — ');
       b
         ..writeln('  <wpt lat="${e.lat.toStringAsFixed(6)}" '
             'lon="${e.lon.toStringAsFixed(6)}">')
         ..writeln('    <time>$t</time>')
-        ..writeln('    <name>${_esc(_stamp(e.time))}</name>')
-        ..writeln('  </wpt>');
+        ..writeln('    <name>${_esc(_stamp(e.time))}</name>');
+      if (desc.isNotEmpty) b.writeln('    <desc>${_esc(desc)}</desc>');
+      b.writeln('  </wpt>');
     }
     b.writeln('</gpx>');
     return b.toString();
@@ -89,14 +119,24 @@ class BoatLog {
   /// CSV — opens in any spreadsheet, email preview or text viewer (unlike GPX,
   /// which needs a mapping app). Best for viewing the movement record as proof.
   static String toCsv(List<BoatLogEntry> entries) {
-    final b = StringBuffer('Date,Time,Latitude,Longitude\n');
+    final b = StringBuffer('Date,Time,Latitude,Longitude,Location,Note\n');
     final chrono = [...entries]..sort((a, b) => a.time.compareTo(b.time));
     for (final e in chrono) {
       final s = _stamp(e.time).split(' ');
       b.writeln('${s[0]},${s.length > 1 ? s[1] : ''},'
-          '${e.lat.toStringAsFixed(6)},${e.lon.toStringAsFixed(6)}');
+          '${e.lat.toStringAsFixed(6)},${e.lon.toStringAsFixed(6)},'
+          '${_csv(e.place)},${_csv(e.note)}');
     }
     return b.toString();
+  }
+
+  /// Quote a CSV field if it contains a comma, quote or newline.
+  static String _csv(String s) {
+    if (s.isEmpty) return '';
+    if (s.contains(RegExp('[",\n]'))) {
+      return '"${s.replaceAll('"', '""')}"';
+    }
+    return s;
   }
 
   static String _stamp(DateTime t) {

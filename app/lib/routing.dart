@@ -17,13 +17,42 @@ class RouteResult {
 
   double get miles => metres / 1609.34;
 
-  /// The route as a GPX track — opens in other boating/mapping apps.
-  String toGpx() {
+  /// The route as a GPX file — opens in other boating/mapping apps.
+  ///
+  /// Includes:
+  ///   • a dated metadata header + a route name carrying the date, so a saved
+  ///     route is self-describing ("when did I plan this?");
+  ///   • the track itself;
+  ///   • any [stoppages] along the way as waypoints with a hazard symbol, so
+  ///     the exported route warns of closures/restrictions too.
+  String toGpx({DateTime? date, List<RouteStoppage> stoppages = const []}) {
+    final when = (date ?? DateTime.now());
+    final dayLabel =
+        '${when.year}-${_two(when.month)}-${_two(when.day)}';
     final b = StringBuffer()
       ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
       ..writeln('<gpx version="1.1" creator="Canal Map: UK Waterways" '
           'xmlns="http://www.topografix.com/GPX/1/1">')
-      ..writeln('  <trk><name>Canal Map route</name><trkseg>');
+      ..writeln('  <metadata>')
+      ..writeln('    <name>${_esc('Canal Map route — $dayLabel')}</name>')
+      ..writeln('    <desc>${_esc('${miles.toStringAsFixed(1)} miles, '
+          '$locks locks. Planned $dayLabel in Canal Map: UK Waterways.')}</desc>')
+      ..writeln('    <time>${when.toUtc().toIso8601String()}</time>')
+      ..writeln('  </metadata>');
+
+    // Stoppages first, as waypoints (some apps hide track-internal points).
+    for (final s in stoppages) {
+      b
+        ..writeln('  <wpt lat="${s.lat.toStringAsFixed(6)}" '
+            'lon="${s.lon.toStringAsFixed(6)}">')
+        ..writeln('    <name>${_esc(s.title)}</name>')
+        ..writeln('    <desc>${_esc('${s.state} — check before travelling')}</desc>')
+        ..writeln('    <sym>Danger</sym>')
+        ..writeln('    <type>stoppage</type>')
+        ..writeln('  </wpt>');
+    }
+
+    b.writeln('  <trk><name>${_esc('Canal Map route — $dayLabel')}</name><trkseg>');
     for (final p in polyline) {
       b.writeln('    <trkpt lat="${p.latitude.toStringAsFixed(6)}" '
           'lon="${p.longitude.toStringAsFixed(6)}"></trkpt>');
@@ -33,6 +62,22 @@ class RouteResult {
       ..writeln('</gpx>');
     return b.toString();
   }
+
+  static String _two(int n) => n.toString().padLeft(2, '0');
+
+  static String _esc(String s) => s
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
+}
+
+/// A stoppage/notice that falls along a route, for inclusion in the export.
+class RouteStoppage {
+  const RouteStoppage(this.lat, this.lon, this.title, this.state);
+  final double lat;
+  final double lon;
+  final String title;
+  final String state;
 }
 
 /// On-device routable graph, loaded from the bundled binary (see

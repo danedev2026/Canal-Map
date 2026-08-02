@@ -33,6 +33,13 @@ from shapely import STRtree
 COORD_PRECISION = 6
 GAP_CONNECT_METRES = 35.0
 GAP_SNAP_METRES = 20.0
+# Component stitching: after snapping, greedily bridge still-disconnected
+# components by their single closest node-pair (shortest first), but only across
+# gaps this short. Recovers real junction/lock-flight gaps the OSM geometry
+# leaves open, WITHOUT inventing long water links between navigations that are
+# genuinely separate (Scottish canals, the Lancaster Canal, isolated rivers) —
+# a false "you can cruise across here" is worse than an honest "no through route".
+STITCH_METRES = 80.0
 LOCK_SNAP_METRES = 40.0
 R_EARTH = 6371000.0
 GRAPH_MAGIC = b"CMRG"
@@ -117,6 +124,64 @@ def snap_gaps(adj, coord, tol_m):
     return added
 
 
+class _UnionFind:
+    def __init__(self, items):
+        self.p = {x: x for x in items}
+
+    def find(self, x):
+        while self.p[x] != x:
+            self.p[x] = self.p[self.p[x]]
+            x = self.p[x]
+        return x
+
+    def union(self, a, b):
+        ra, rb = self.find(a), self.find(b)
+        if ra == rb:
+            return False
+        self.p[ra] = rb
+        return True
+
+
+def stitch_components(adj, coord, max_m):
+    """Bridge still-disconnected components by their shortest node-pair, greedily
+    shortest-first, but only across gaps <= max_m. Adds at most one edge per
+    merge, so it can't create spurious shortcuts inside an already-connected
+    component. Returns the number of bridges added."""
+    uf = _UnionFind(list(adj.keys()))
+    for a in adj:
+        for b in adj[a]:
+            uf.union(a, b)
+
+    keys = list(adj.keys())
+    pts = [Point(*coord[k]) for k in keys]
+    tree = STRtree(pts)
+    tol_deg = max_m / 60000.0
+
+    # Candidate inter-node bridges within max_m (dedup unordered pairs).
+    cand, seen = [], set()
+    for idx, k in enumerate(keys):
+        for j in tree.query(pts[idx].buffer(tol_deg)):
+            j = int(j)
+            if j == idx:
+                continue
+            pair = (idx, j) if idx < j else (j, idx)
+            if pair in seen:
+                continue
+            seen.add(pair)
+            d = _haversine(coord[k], coord[keys[j]])
+            if d <= max_m:
+                cand.append((d, k, keys[j]))
+    cand.sort(key=lambda t: t[0])
+
+    added = 0
+    for d, k1, k2 in cand:
+        if uf.union(k1, k2):  # only if they were in different components
+            adj[k1][k2] = d
+            adj[k2][k1] = d
+            added += 1
+    return added
+
+
 def connected_components(adj):
     seen, comps = set(), []
     for start in adj:
@@ -142,6 +207,8 @@ def build(network, locks):
     geoms = merged.geoms if merged.geom_type == "MultiLineString" else [merged]
     adj, coord = build_vertex_graph([list(g.coords) for g in geoms])
     snap_gaps(adj, coord, GAP_SNAP_METRES)
+    bridged = stitch_components(adj, coord, STITCH_METRES)
+    print(f"stitched {bridged} short inter-component gaps (<= {STITCH_METRES:.0f} m)")
 
     # Mark lock nodes.
     keys = list(adj.keys())

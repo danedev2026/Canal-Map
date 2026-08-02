@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canal Map — live map | UK Waterways</title>
+<meta name="description" content="Explore the UK's connected canals and navigable rivers on desktop: locks, facilities, moorings, place names and live stoppages.">
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/pmtiles@3.2.1/dist/pmtiles.js"></script>
+<style>
+  :root { --green:#16302b; --gold:#d9a62a; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+  #map { position:absolute; inset:0; }
+  .topbar { position:absolute; z-index:5; top:0; left:0; right:0; height:52px;
+    background:var(--green); color:#fff; display:flex; align-items:center; gap:12px;
+    padding:0 14px; box-shadow:0 1px 6px rgba(0,0,0,.3); }
+  .topbar .mark { color:var(--gold); font-size:22px; }
+  .topbar b { font-size:16px; }
+  .topbar .sub { opacity:.7; font-size:12px; letter-spacing:.3px; }
+  .topbar a { margin-left:auto; color:#cfe0dc; font-size:14px; text-decoration:none; }
+  .topbar a:hover { color:#fff; text-decoration:underline; }
+  #search { position:absolute; z-index:5; top:64px; left:12px; width:280px; max-width:70vw; }
+  #search input { width:100%; padding:10px 12px; border:1px solid #ccc; border-radius:8px;
+    font-size:14px; box-shadow:0 1px 6px rgba(0,0,0,.15); }
+  #results { list-style:none; margin:4px 0 0; padding:0; background:#fff; border-radius:8px;
+    box-shadow:0 2px 10px rgba(0,0,0,.2); max-height:44vh; overflow:auto; display:none; }
+  #results li { padding:9px 12px; cursor:pointer; border-bottom:1px solid #f0f0f0; font-size:14px; }
+  #results li:hover { background:#f4f7f6; }
+  #results li small { color:#789; }
+  .legend { position:absolute; z-index:5; bottom:22px; left:12px; background:#fff;
+    border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.2); padding:10px 12px; font-size:13px; }
+  .legend h4 { margin:0 0 6px; font-size:12px; color:#555; text-transform:uppercase; letter-spacing:.4px; }
+  .legend .row { display:flex; align-items:center; gap:8px; padding:2px 0; }
+  .legend .dot { width:11px; height:11px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px #ccc; }
+  .maplibregl-popup-content { font-size:14px; }
+  .maplibregl-popup-content b { display:block; margin-bottom:2px; }
+  .banner { position:absolute; z-index:5; bottom:22px; right:12px; background:#fff;
+    border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.2); padding:8px 12px; font-size:13px; color:#c0392b; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="mark">⚓</span>
+  <div><b>Canal Map</b> <span class="sub">UK WATERWAYS</span></div>
+  <a href="index.html">← About &amp; download</a>
+</div>
+
+<div id="search">
+  <input id="q" type="text" placeholder="Search places &amp; waterways…" autocomplete="off">
+  <ul id="results"></ul>
+</div>
+
+<div class="legend" id="legend"><h4>Facilities</h4></div>
+<div class="banner" id="banner" style="display:none"></div>
+<div id="map"></div>
+
+<script>
+// Facility types — must match the app's palette so the two feel like one product.
+const POI = {
+  lock:        ['Lock', '#C0392B'],
+  water_point: ['Water point', '#2980B9'],
+  sanitary:    ['Elsan / sanitary', '#27AE60'],
+  pumpout:     ['Pump-out', '#8E44AD'],
+  refuse:      ['Refuse disposal', '#7F8C8D'],
+  pub:         ['Pub', '#E67E22'],
+  mooring:     ['Mooring', '#00897B'],
+};
+
+// Live stoppages feed (same file the app uses); fetched read-only, offline-safe.
+const STOPPAGES_URL =
+  'https://raw.githubusercontent.com/danedev2026/Canal-Map/main/data/stoppages.json';
+const SEARCH_URL =
+  'https://raw.githubusercontent.com/danedev2026/Canal-Map/main/data/search_index.json';
+
+// Build the facility colour match expression for the circle layer.
+const poiMatch = ['match', ['get', 'type']];
+for (const k in POI) poiMatch.push(k, POI[k][1]);
+poiMatch.push('#555');
+
+// Render the legend.
+const legend = document.getElementById('legend');
+for (const k in POI) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `<span class="dot" style="background:${POI[k][1]}"></span>${POI[k][0]}`;
+  legend.appendChild(row);
+}
+
+// Register the PMTiles protocol so MapLibre can read our bundled vector tiles.
+const protocol = new pmtiles.Protocol();
+maplibregl.addProtocol('pmtiles', protocol.tile);
+
+const map = new maplibregl.Map({
+  container: 'map',
+  center: [-1.90, 52.48], // Birmingham — the canal heartland
+  zoom: 8,
+  maxZoom: 16,
+  style: {
+    version: 8,
+    glyphs: 'glyphs/{fontstack}/{range}.pbf',
+    sources: {
+      canal: {
+        type: 'vector',
+        url: 'pmtiles://basemap.pmtiles',
+        attribution:
+          '© OpenStreetMap contributors (ODbL); Canal &amp; River Trust; Environment Agency',
+      },
+    },
+    layers: [
+      { id: 'bg', type: 'background', paint: { 'background-color': '#eef3f6' } },
+      {
+        id: 'waterway', type: 'line', source: 'canal', 'source-layer': 'network',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': ['match', ['get', 'waterway'], 'canal', '#2a6fb0', 'river', '#3a8fd0', '#3a8fd0'],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.6, 11, 1.8, 16, 4.5],
+        },
+      },
+      {
+        id: 'tidal', type: 'line', source: 'canal', 'source-layer': 'network',
+        filter: ['==', ['get', 'tidal'], 1],
+        paint: {
+          'line-color': '#e65100',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.0, 11, 2.6, 16, 6.0],
+          'line-dasharray': [2, 2],
+        },
+      },
+      {
+        id: 'places', type: 'symbol', source: 'canal', 'source-layer': 'places', minzoom: 8,
+        filter: ['step', ['zoom'], ['match', ['get', 'type'], ['city', 'town'], true, false], 11, true],
+        layout: {
+          'text-field': ['get', 'name'], 'text-font': ['OpenSans-Regular'],
+          'text-size': ['match', ['get', 'type'], 'city', 15, 'town', 13, 'suburb', 12, 11],
+          'text-max-width': 8,
+          'symbol-sort-key': ['match', ['get', 'type'], 'city', 1, 'town', 2, 'suburb', 3, 'village', 4, 5],
+        },
+        paint: { 'text-color': '#5a6b78', 'text-halo-color': '#fff', 'text-halo-width': 1.6 },
+      },
+      {
+        id: 'bridges', type: 'symbol', source: 'canal', 'source-layer': 'features', minzoom: 13,
+        filter: ['==', ['get', 'type'], 'bridge'],
+        layout: { 'text-field': ['get', 'ref'], 'text-font': ['OpenSans-Regular'], 'text-size': 11 },
+        paint: { 'text-color': '#5d4037', 'text-halo-color': '#fff', 'text-halo-width': 1.6 },
+      },
+      {
+        id: 'features', type: 'circle', source: 'canal', 'source-layer': 'features',
+        filter: ['!=', ['get', 'type'], 'bridge'],
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 2.4, 13, 5, 16, 7],
+          'circle-color': poiMatch,
+          'circle-stroke-color': '#fff', 'circle-stroke-width': 1.4,
+        },
+      },
+    ],
+  },
+});
+
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'imperial' }), 'bottom-left');
+
+// Popups for facilities.
+map.on('click', 'features', (e) => {
+  const p = e.features[0].properties;
+  const meta = POI[p.type];
+  const label = meta ? meta[0] : (p.type || 'Feature');
+  const name = (p.name && p.name.trim()) ? p.name : ('Unnamed ' + label.toLowerCase());
+  new maplibregl.Popup().setLngLat(e.lngLat)
+    .setHTML(`<b>${escapeHtml(name)}</b>${escapeHtml(label)}`).addTo(map);
+});
+map.on('mouseenter', 'features', () => map.getCanvas().style.cursor = 'pointer');
+map.on('mouseleave', 'features', () => map.getCanvas().style.cursor = '');
+
+// Live stoppages overlay.
+map.on('load', () => {
+  fetch(STOPPAGES_URL).then(r => r.json()).then(doc => {
+    const items = doc.stoppages || [];
+    const feats = items.filter(s => s.lat && s.lon).map(s => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
+      properties: s,
+    }));
+    map.addSource('stoppages', { type: 'geojson', data: { type: 'FeatureCollection', features: feats } });
+    map.addLayer({
+      id: 'stoppages', type: 'circle', source: 'stoppages',
+      paint: {
+        'circle-radius': 7,
+        'circle-color': ['match', ['get', 'state'], 'restricted', '#F9A825', 'advisory', '#1976D2', '#D32F2F'],
+        'circle-stroke-color': '#fff', 'circle-stroke-width': 2,
+      },
+    });
+    map.on('click', 'stoppages', (e) => {
+      const p = e.features[0].properties;
+      const dates = [p.start, p.end].filter(Boolean).join(' → ');
+      new maplibregl.Popup().setLngLat(e.lngLat).setHTML(
+        `<b>${escapeHtml(p.title || 'Notice')}</b>` +
+        (p.waterway ? escapeHtml(p.waterway) + '<br>' : '') +
+        (p.reason ? escapeHtml(p.reason) + '<br>' : '') +
+        (dates ? '<small>' + escapeHtml(dates) + '</small>' : '')
+      ).addTo(map);
+    });
+    map.on('mouseenter', 'stoppages', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'stoppages', () => map.getCanvas().style.cursor = '');
+    const b = document.getElementById('banner');
+    b.style.display = 'block';
+    b.textContent = `⚠ ${feats.length} live stoppage${feats.length === 1 ? '' : 's'} & notices`;
+  }).catch(() => {});
+});
+
+// Lightweight search over the bundled index.
+let index = [];
+fetch(SEARCH_URL).then(r => r.json()).then(d => { index = d; }).catch(() => {});
+const q = document.getElementById('q');
+const results = document.getElementById('results');
+q.addEventListener('input', () => {
+  const s = q.value.trim().toLowerCase();
+  results.innerHTML = '';
+  if (!s) { results.style.display = 'none'; return; }
+  const matches = index
+    .filter(e => e.name.toLowerCase().includes(s))
+    .sort((a, b) => (a.name.toLowerCase().startsWith(s) ? 0 : 1) - (b.name.toLowerCase().startsWith(s) ? 0 : 1))
+    .slice(0, 20);
+  for (const m of matches) {
+    const li = document.createElement('li');
+    const label = m.type === 'waterway' ? 'Waterway' : (POI[m.type] ? POI[m.type][0] : 'Feature');
+    li.innerHTML = `${escapeHtml(m.name)} <small>· ${label}</small>`;
+    li.onclick = () => {
+      map.flyTo({ center: [m.lon, m.lat], zoom: 14 });
+      results.style.display = 'none';
+      q.value = m.name;
+    };
+    results.appendChild(li);
+  }
+  results.style.display = matches.length ? 'block' : 'none';
+});
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+</script>
+</body>
+</html>

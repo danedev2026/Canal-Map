@@ -9,15 +9,23 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:share_plus/share_plus.dart';
 
+import 'app_settings.dart';
 import 'attribution.dart';
 import 'boat_log.dart';
 import 'boat_log_screen.dart';
+import 'exporter.dart';
 import 'routing.dart';
+import 'saved_routes.dart';
+import 'saved_routes_screen.dart';
+import 'settings_screen.dart';
 import 'stoppages.dart';
 
-void main() => runApp(const CanalMapApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AppSettings.instance.load();
+  runApp(const CanalMapApp());
+}
 
 /// Single source of truth for POI types: drives the map circle colours, the
 /// legend, and the tap info-sheet so they can never drift apart.
@@ -45,13 +53,20 @@ class CanalMapApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Canal Map: UK Waterways',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF16302B), // brand deep canal-green
-      ),
-      home: const MapScreen(),
+    // Rebuild when the user changes theme mode / colour (AppSettings notifies).
+    return AnimatedBuilder(
+      animation: AppSettings.instance,
+      builder: (context, _) {
+        final s = AppSettings.instance;
+        return MaterialApp(
+          title: 'Canal Map: UK Waterways',
+          debugShowCheckedModeBanner: false,
+          theme: s.themeFor(Brightness.light),
+          darkTheme: s.themeFor(Brightness.dark),
+          themeMode: s.mode,
+          home: const MapScreen(),
+        );
+      },
     );
   }
 }
@@ -114,6 +129,12 @@ class _MapScreenState extends State<MapScreen> {
   double _bearing = 0; // map rotation, drives the compass
   bool _satellite = false; // online aerial imagery basemap
 
+  // Dark-map support. Paths kept so the style can be rebuilt when the theme's
+  // brightness changes (light ↔ dark map).
+  String? _pmtilesPath;
+  String? _glyphsPath;
+  bool _dark = false;
+
   // Routing (v1.1). Graph loaded lazily the first time route mode is used.
   RouteGraph? _graph;
   bool _routeMode = false;
@@ -156,7 +177,9 @@ class _MapScreenState extends State<MapScreen> {
 
       setState(() {
         _searchEntries = entries;
-        _styleJson = _buildStyle(dest.path, glyphsPath);
+        _pmtilesPath = dest.path;
+        _glyphsPath = glyphsPath;
+        _styleJson = _buildStyle(dest.path, glyphsPath, _dark);
       });
     } catch (e) {
       setState(() => _error = '$e');
@@ -183,7 +206,15 @@ class _MapScreenState extends State<MapScreen> {
   /// MapLibre style referencing the local PMTiles via the pmtiles:// protocol.
   /// source-layers `network` / `features` match the tile layers we built in
   /// the Python pipeline.
-  String _buildStyle(String pmtilesPath, String glyphsPath) => '''
+  String _buildStyle(String pmtilesPath, String glyphsPath, bool dark) {
+    // Theme-aware palette: a dark map for dark mode, light otherwise. Canals
+    // keep a blue identity in both; brightened a touch on the dark background.
+    final bg = dark ? '#0e1a1f' : '#eef3f6';
+    final canal = dark ? '#4a90d0' : '#2a6fb0';
+    final river = dark ? '#5aa6e2' : '#3a8fd0';
+    final placeText = dark ? '#9fb3c0' : '#5a6b78';
+    final placeHalo = dark ? '#0b151a' : '#ffffff';
+    return '''
 {
   "version": 8,
   "glyphs": "file://$glyphsPath/{fontstack}/{range}.pbf",
@@ -198,7 +229,7 @@ class _MapScreenState extends State<MapScreen> {
     {
       "id": "background",
       "type": "background",
-      "paint": { "background-color": "#eef3f6" }
+      "paint": { "background-color": "$bg" }
     },
     {
       "id": "waterway",
@@ -209,9 +240,9 @@ class _MapScreenState extends State<MapScreen> {
       "paint": {
         "line-color": [
           "match", ["get", "waterway"],
-          "canal", "#2a6fb0",
-          "river", "#3a8fd0",
-          "#3a8fd0"
+          "canal", "$canal",
+          "river", "$river",
+          "$river"
         ],
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
@@ -259,14 +290,15 @@ class _MapScreenState extends State<MapScreen> {
           "city", 1, "town", 2, "suburb", 3, "village", 4, 5]
       },
       "paint": {
-        "text-color": "#5a6b78",
-        "text-halo-color": "#ffffff",
+        "text-color": "$placeText",
+        "text-halo-color": "$placeHalo",
         "text-halo-width": 1.6
       }
     }
   ]
 }
 ''';
+  }
 
   void _onMapCreated(MapLibreMapController controller) {
     _controller = controller;
@@ -299,11 +331,36 @@ class _MapScreenState extends State<MapScreen> {
           content: Text('No GPS fix yet — try again in a moment.')));
       return;
     }
-    await BoatLog.add(BoatLogEntry(DateTime.now(), loc.$1, loc.$2));
+    final place = _nearestPlaceLabel(loc.$1, loc.$2);
+    await BoatLog.add(BoatLogEntry(DateTime.now(), loc.$1, loc.$2, place: place));
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Position logged to your boat log')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(place.isEmpty
+              ? 'Position logged to your boat log'
+              : 'Logged $place to your boat log')));
     }
+  }
+
+  /// A short human label for a position — the nearest named place/waterway in
+  /// the search index, e.g. "near Braunston" or "on the Oxford Canal". Empty if
+  /// nothing is close. Powers the descriptive boat log. Purely local.
+  String _nearestPlaceLabel(double lat, double lon) {
+    SearchEntry? bestPlace, bestWaterway;
+    double dPlace = double.infinity, dWaterway = double.infinity;
+    for (final e in _searchEntries) {
+      final d = _haversineMetres(lat, lon, e.lat, e.lon);
+      if (e.type == 'waterway') {
+        if (d < dWaterway) { dWaterway = d; bestWaterway = e; }
+      } else {
+        if (d < dPlace) { dPlace = d; bestPlace = e; }
+      }
+    }
+    final parts = <String>[];
+    if (bestPlace != null && dPlace <= 2000) parts.add('near ${bestPlace.name}');
+    if (bestWaterway != null && dWaterway <= 400) {
+      parts.add('on the ${bestWaterway.name}');
+    }
+    return parts.join(', ');
   }
 
   Future<void> _toggleSatellite() async {
@@ -328,7 +385,13 @@ class _MapScreenState extends State<MapScreen> {
         _logMyPosition();
       case 'logbook':
         Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => BoatLogScreen(getLocation: _currentLatLon)));
+            builder: (_) => BoatLogScreen(
+                getLocation: _currentLatLon, nearestPlace: _nearestPlaceLabel)));
+      case 'saved':
+        _openSavedRoutes();
+      case 'settings':
+        Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const SettingsScreen()));
       case 'about':
         Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const AttributionScreen()));
@@ -397,7 +460,28 @@ class _MapScreenState extends State<MapScreen> {
       ),
       enableInteraction: false,
     );
+
+    // A style reload (e.g. switching light/dark) wipes runtime layers, so
+    // restore whatever the user had on: a drawn route and its end markers.
+    if (_route != null) {
+      await controller.setGeoJsonSource('route', _routeLineFc(_route!));
+      await _drawRouteEnds();
+    }
   }
+
+  Map<String, dynamic> _routeLineFc(RouteResult r) => {
+        'type': 'FeatureCollection',
+        'features': [
+          {
+            'type': 'Feature',
+            'geometry': {
+              'type': 'LineString',
+              'coordinates':
+                  r.polyline.map((q) => [q.longitude, q.latitude]).toList(),
+            },
+          }
+        ],
+      };
 
   Map<String, dynamic> _emptyFc() => {'type': 'FeatureCollection', 'features': []};
 
@@ -422,7 +506,8 @@ class _MapScreenState extends State<MapScreen> {
       const RasterLayerProperties(),
       belowLayerId: 'waterway', // canals + POIs stay on top
     );
-    await controller.setLayerVisibility('satellite', false);
+    // Preserve the user's choice across style reloads (theme switches).
+    await controller.setLayerVisibility('satellite', _satellite);
   }
 
   /// Render a Material icon glyph to a PNG (white disc + coloured ring + glyph)
@@ -484,8 +569,8 @@ class _MapScreenState extends State<MapScreen> {
         textOffset: [0, 1.3],
         textAnchor: 'top',
         textOptional: true, // keep the icon even if the label can't fit
-        textColor: '#37474f',
-        textHaloColor: '#ffffff',
+        textColor: _dark ? '#d7e0e6' : '#37474f',
+        textHaloColor: _dark ? '#0b151a' : '#ffffff',
         textHaloWidth: 1.4,
       ),
       sourceLayer: 'features',
@@ -504,8 +589,8 @@ class _MapScreenState extends State<MapScreen> {
         textField: ['get', 'ref'],
         textFont: ['OpenSans-Regular'],
         textSize: 11.0,
-        textColor: '#5d4037',
-        textHaloColor: '#ffffff',
+        textColor: _dark ? '#c9a97e' : '#5d4037',
+        textHaloColor: _dark ? '#0b151a' : '#ffffff',
         textHaloWidth: 1.6,
       ),
       sourceLayer: 'features',
@@ -639,7 +724,11 @@ class _MapScreenState extends State<MapScreen> {
     if (!mounted) return;
     setState(() {
       _route = result;
-      _routeError = result == null ? 'No through route found' : null;
+      _routeError = result == null
+          ? 'No through route by water. These points are on separately-mapped '
+              'waterways (e.g. an isolated canal or river) with no navigable '
+              'link between them.'
+          : null;
       _routing = false;
     });
     await _controller?.setGeoJsonSource('route', {
@@ -662,16 +751,124 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _exportRoute() async {
     final r = _route;
     if (r == null) return;
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/canal-map-route.gpx');
-    await file.writeAsString(r.toGpx(), flush: true);
     final h = r.eta.inHours, m = r.eta.inMinutes % 60;
-    await SharePlus.instance.share(ShareParams(
-      files: [XFile(file.path, mimeType: 'application/gpx+xml')],
-      subject: 'Canal Map route',
-      text: 'Route: ${r.miles.toStringAsFixed(1)} miles, ${r.locks} locks, '
+    final stamp = DateTime.now().toIso8601String().split('T').first;
+    await Exporter.saveOrShare(
+      context,
+      filename: 'canal-map-route-$stamp.gpx',
+      // Date + any stoppages along the way baked into the file.
+      content: r.toGpx(date: DateTime.now(), stoppages: _routeStoppages(r)),
+      mimeType: 'application/gpx+xml',
+      shareSubject: 'Canal Map route',
+      shareText: 'Route: ${r.miles.toStringAsFixed(1)} miles, ${r.locks} locks, '
           '~${h > 0 ? '${h}h ' : ''}${m}m cruising.',
-    ));
+    );
+  }
+
+  /// Stoppages within ~250 m of the route polyline, for inclusion in the GPX
+  /// export so a saved route also warns of closures. Uses the same visible set
+  /// as the map (respects the planned/future toggle).
+  List<RouteStoppage> _routeStoppages(RouteResult r) {
+    final poly = r.polyline;
+    if (poly.length < 2) return const [];
+    final step = (poly.length / 600).ceil().clamp(1, poly.length);
+    const thresholdM = 250.0;
+    final out = <RouteStoppage>[];
+    for (final s in _visibleStoppages) {
+      var best = double.infinity;
+      for (var i = 0; i < poly.length; i += step) {
+        final d = _haversineMetres(
+            s.lat, s.lon, poly[i].latitude, poly[i].longitude);
+        if (d < best) best = d;
+      }
+      if (best <= thresholdM) {
+        out.add(RouteStoppage(s.lat, s.lon, s.title, s.state));
+      }
+    }
+    return out;
+  }
+
+  /// Ask for a name, then keep the current route on-device for reuse.
+  Future<void> _saveCurrentRoute() async {
+    final r = _route;
+    if (r == null) return;
+    final startName = _nearestPlaceLabel(r.polyline.first.latitude,
+        r.polyline.first.longitude);
+    final endName = _nearestPlaceLabel(
+        r.polyline.last.latitude, r.polyline.last.longitude);
+    final suggested = _routeSuggestedName(startName, endName);
+    final controller = TextEditingController(text: suggested);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Save route'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Name'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, controller.text.trim()),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (name == null) return;
+    await SavedRoutes.add(
+        SavedRoute.fromResult(name.isEmpty ? suggested : name, r));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Route saved')));
+    }
+  }
+
+  String _routeSuggestedName(String startName, String endName) {
+    String tidy(String s) =>
+        s.replaceAll('near ', '').split(',').first.trim();
+    final a = tidy(startName), b = tidy(endName);
+    if (a.isNotEmpty && b.isNotEmpty) return '$a → $b';
+    final stamp = DateTime.now().toIso8601String().split('T').first;
+    return 'Route $stamp';
+  }
+
+  /// Open the saved-routes list; if one is picked, draw it on the map.
+  Future<void> _openSavedRoutes() async {
+    final picked = await Navigator.of(context).push<SavedRoute>(
+        MaterialPageRoute(builder: (_) => const SavedRoutesScreen()));
+    if (picked == null) return;
+    await _loadSavedRoute(picked);
+  }
+
+  Future<void> _loadSavedRoute(SavedRoute sr) async {
+    _graph ??= await RouteGraph.load('assets/routing.graph');
+    final r = sr.toResult();
+    setState(() {
+      _routeMode = true;
+      _routeStart = sr.start;
+      _routeEnd = sr.end;
+      _route = r;
+      _routeError = null;
+    });
+    await _controller?.setGeoJsonSource('route', _routeLineFc(r));
+    await _drawRouteEnds();
+    // Frame the whole route.
+    final b = _routeBounds(r.polyline);
+    await _controller?.animateCamera(CameraUpdate.newLatLngBounds(b,
+        left: 40, right: 40, top: 80, bottom: 160));
+  }
+
+  LatLngBounds _routeBounds(List<LatLng> poly) {
+    var minLa = 90.0, maxLa = -90.0, minLo = 180.0, maxLo = -180.0;
+    for (final p in poly) {
+      minLa = math.min(minLa, p.latitude);
+      maxLa = math.max(maxLa, p.latitude);
+      minLo = math.min(minLo, p.longitude);
+      maxLo = math.max(maxLo, p.longitude);
+    }
+    return LatLngBounds(
+        southwest: LatLng(minLa, minLo), northeast: LatLng(maxLa, maxLo));
   }
 
   /// A fuller journey plan: figures, the waterways you travel and the
@@ -714,13 +911,30 @@ class _MapScreenState extends State<MapScreen> {
             _planRow(ctx, Icons.schedule, 'Estimated time',
                 '$eta  (≈3 mph + ${_minsPerLockLabel()}/lock)'),
             const SizedBox(height: 12),
-            FilledButton.icon(
-              icon: const Icon(Icons.ios_share, size: 18),
-              label: const Text('Save / share route (GPX)'),
-              onPressed: () {
-                Navigator.pop(ctx);
-                _exportRoute();
-              },
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    icon: const Icon(Icons.bookmark_add_outlined, size: 18),
+                    label: const Text('Save route'),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _saveCurrentRoute();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    icon: const Icon(Icons.ios_share, size: 18),
+                    label: const Text('Export (GPX)'),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _exportRoute();
+                    },
+                  ),
+                ),
+              ],
             ),
             if (waterways.isNotEmpty) ...[
               const Divider(height: 32),
@@ -1088,6 +1302,20 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Follow the app theme's brightness: if it flipped (user switched
+    // light/dark), rebuild the map style so the map itself darkens too. Done
+    // post-frame to avoid setState-during-build.
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    if (dark != _dark && _pmtilesPath != null) {
+      _dark = dark;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() =>
+              _styleJson = _buildStyle(_pmtilesPath!, _glyphsPath!, _dark));
+        }
+      });
+    }
+
     if (_error != null) {
       return Scaffold(
         body: Center(
@@ -1101,7 +1329,6 @@ class _MapScreenState extends State<MapScreen> {
     }
     if (_styleJson == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFeef3f6),
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1194,10 +1421,25 @@ class _MapScreenState extends State<MapScreen> {
                   contentPadding: EdgeInsets.zero),
               ),
               const PopupMenuItem(
+                value: 'saved',
+                child: ListTile(
+                  leading: Icon(Icons.route),
+                  title: Text('Saved routes'),
+                  contentPadding: EdgeInsets.zero),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'settings',
+                child: ListTile(
+                  leading: Icon(Icons.palette_outlined),
+                  title: Text('Appearance'),
+                  contentPadding: EdgeInsets.zero),
+              ),
+              const PopupMenuItem(
                 value: 'about',
                 child: ListTile(
                   leading: Icon(Icons.info_outline),
-                  title: Text('About & data sources'),
+                  title: Text('About, help & legal'),
                   contentPadding: EdgeInsets.zero),
               ),
             ],

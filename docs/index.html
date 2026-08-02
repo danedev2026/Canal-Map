@@ -24,6 +24,11 @@
   ul.feat li::before { content:"⚓"; position:absolute; left:0; color:var(--gold); }
   .note { background:#f4f7f6; border-left:4px solid var(--green); padding:14px 16px;
           border-radius:6px; font-size:15px; }
+  .btn { display:inline-block; background:var(--gold); color:#2a2205; font-weight:600;
+         text-decoration:none; padding:12px 22px; border-radius:26px; margin-top:20px;
+         box-shadow:0 2px 8px rgba(0,0,0,.25); }
+  .btn:hover { filter:brightness(1.05); }
+  .btn.alt { background:rgba(255,255,255,.14); color:#fff; margin-left:8px; }
   footer { text-align:center; color:#889; font-size:14px; padding:40px 20px; }
   footer a { color:#667; }
 </style>
@@ -34,6 +39,9 @@
   <h1>Canal Map</h1>
   <p>UK WATERWAYS</p>
   <div class="tag">Free · Offline · No ads · No tracking</div>
+  <div>
+    <a class="btn" href="map.html">Open the live map →</a>
+  </div>
 </header>
 
 <div class="wrap">
@@ -48,10 +56,16 @@
     <li>Locks, water points, Elsan, pump-out, refuse, pubs and moorings — with clear icons</li>
     <li>Numbered canal bridges and place names</li>
     <li>Live Canal &amp; River Trust stoppages &amp; closures (with an offline fallback)</li>
-    <li>Route planning with distance, lock count and estimated journey time</li>
+    <li>Route planning with distance, lock count and estimated journey time — save routes for later</li>
     <li>Search, “near me”, GPS follow-me and a tidal-hazard overlay</li>
-    <li>A boat-movement log you can export as GPX — handy for continuous cruisers</li>
+    <li>A descriptive boat-movement log you can export as CSV or GPX — handy for continuous cruisers</li>
+    <li>Optional online aerial imagery, light &amp; dark themes, and a safety guide</li>
   </ul>
+
+  <h2>Use it on desktop</h2>
+  <p>No phone to hand? <a href="map.html">Open the live map in your browser</a> to
+  pan and zoom the whole network, see the facilities and place names, search, and
+  check live stoppages — the same offline map, right in the page.</p>
 
   <div class="note">
     Distances and journey times are estimates, and tidal waters are hazardous —
@@ -61,7 +75,8 @@
   <h2>Free, and private</h2>
   <p>No adverts, no accounts, no analytics, no tracking. The only thing the app
   ever fetches is a small daily stoppages file; the map itself is always read
-  from your device. See the <a href="privacy.html">privacy policy</a>.</p>
+  from your device. See the
+  <a href="https://danedev2026.github.io/canal-map/privacy.html">privacy policy</a>.</p>
 
   <h2>Data</h2>
   <p>Map data © OpenStreetMap contributors (ODbL); facilities and notices from
@@ -71,7 +86,8 @@
 
 <footer>
   Canal Map: UK Waterways · a personal project ·
-  <a href="privacy.html">Privacy</a>
+  <a href="map.html">Live map</a> ·
+  <a href="https://danedev2026.github.io/canal-map/privacy.html">Privacy</a>
 </footer>
 </body>
 </html>

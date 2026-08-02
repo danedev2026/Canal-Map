@@ -38,13 +38,23 @@ runtime fetch is the daily `stoppages.json` (served as a static file from the
 GitHub repo, refreshed by a GitHub Action), with offline fallback. Never add
 anything needing a writable backend (breaks £0).
 
-## Status — v1 + v1.1 COMPLETE (in closed testing)
-All of PLAN.md is built and verified on a real S10+ and the emulator:
-nationwide offline map, POIs with icons, search + near-me, GPS/follow-me, live
-CRT stoppages, tidal hazards, place/bridge/POI labels, and on-device route
-planning with lockmile ETAs. Signed release bundle builds; released to Play
-closed testing. See the auto-memory (MEMORY.md) for the detailed state, the
-signing keystore location, and known gotchas.
+## Status — through v1.5 COMPLETE (in closed testing)
+All of PLAN.md plus many refinements, built and verified on a real S10+ and the
+emulator: nationwide offline map, POIs with icons, search + near-me,
+GPS/follow-me, live CRT stoppages, tidal hazards, place/bridge/POI labels, and
+on-device route planning with lockmile ETAs. Later releases added:
+- v1.3 moorings, "Route here", boat log + export, planned-stoppages toggle.
+- v1.4 optional online satellite (Esri), detailed journey plan, CSV export.
+- v1.5 (current, versionCode 7): light/dark mode + colour themes; save routes
+  in-app; descriptive boat log (nearest-place label + editable note) with
+  single-entry delete; "Save to device" (SAF) export so files land in Files;
+  route GPX now embeds along-route stoppages + a date; component-stitching in
+  the routing graph (70.4%→74.3% connected — recovers real <80 m junction gaps
+  without inventing water links between genuinely separate navigations);
+  Safety & canal-use guide + Terms of use in-app; rate-app + external privacy
+  link; interactive desktop map viewer on the GitHub Pages site (docs/map.html).
+Signed release bundle builds; released to Play closed testing. See the
+auto-memory (MEMORY.md) for detailed state, the signing keystore, and gotchas.
 
 ## Working style
 - Verify changes on the emulator or the user's S10+ (screenshots) — don't just
