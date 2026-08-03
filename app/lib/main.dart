@@ -1351,9 +1351,8 @@ class _MapScreenState extends State<MapScreen> {
     final following = _tracking != MyLocationTrackingMode.none;
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF16302B), // deep canal-green
-        foregroundColor: Colors.white,
-        elevation: 2,
+        // Colours come from the theme's appBarTheme (a dark shade of the chosen
+        // seed), so the bar recolours when the user changes the colour theme.
         titleSpacing: 12,
         title: Row(
           mainAxisSize: MainAxisSize.min,

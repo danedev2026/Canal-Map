@@ -29,15 +29,19 @@
   #results li { padding:9px 12px; cursor:pointer; border-bottom:1px solid #f0f0f0; font-size:14px; }
   #results li:hover { background:#f4f7f6; }
   #results li small { color:#789; }
-  .legend { position:absolute; z-index:5; bottom:22px; left:12px; background:#fff;
+  .legend { position:absolute; z-index:5; bottom:40px; left:12px; background:#fff;
     border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.2); padding:10px 12px; font-size:13px; }
   .legend h4 { margin:0 0 6px; font-size:12px; color:#555; text-transform:uppercase; letter-spacing:.4px; }
   .legend .row { display:flex; align-items:center; gap:8px; padding:2px 0; }
   .legend .dot { width:11px; height:11px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px #ccc; }
   .maplibregl-popup-content { font-size:14px; }
   .maplibregl-popup-content b { display:block; margin-bottom:2px; }
-  .banner { position:absolute; z-index:5; bottom:22px; right:12px; background:#fff;
-    border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.2); padding:8px 12px; font-size:13px; color:#c0392b; }
+  /* Keep the map's own controls clear of the fixed top bar and the corner cards. */
+  .maplibregl-ctrl-top-right { top:60px; }
+  .maplibregl-ctrl-bottom-left { bottom:6px; }
+  .banner { position:absolute; z-index:5; bottom:12px; left:50%; transform:translateX(-50%);
+    background:#fff; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.2);
+    padding:8px 12px; font-size:13px; color:#c0392b; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -94,6 +98,7 @@ maplibregl.addProtocol('pmtiles', protocol.tile);
 
 const map = new maplibregl.Map({
   container: 'map',
+  attributionControl: false, // added compact below so it doesn't sprawl
   center: [-1.90, 52.48], // Birmingham — the canal heartland
   zoom: 8,
   maxZoom: 16,
@@ -159,6 +164,7 @@ const map = new maplibregl.Map({
 
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
 map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'imperial' }), 'bottom-left');
+map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 
 // Popups for facilities.
 map.on('click', 'features', (e) => {
