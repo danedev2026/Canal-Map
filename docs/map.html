@@ -6,6 +6,7 @@
 <title>Canal Map — live map | UK Waterways</title>
 <meta name="description" content="Explore the UK's connected canals and navigable rivers on desktop: locks, facilities, moorings, place names and live stoppages.">
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/pmtiles@3.2.1/dist/pmtiles.js"></script>
 <style>
@@ -19,8 +20,15 @@
   .topbar .mark { color:var(--gold); font-size:22px; }
   .topbar b { font-size:16px; }
   .topbar .sub { opacity:.7; font-size:12px; letter-spacing:.3px; }
-  .topbar a { margin-left:auto; color:#cfe0dc; font-size:14px; text-decoration:none; }
+  .topbar .spacer { margin-left:auto; }
+  .topbar a { color:#cfe0dc; font-size:14px; text-decoration:none; }
   .topbar a:hover { color:#fff; text-decoration:underline; }
+  #sat { display:flex; align-items:center; gap:6px; background:rgba(255,255,255,.12);
+    color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:20px;
+    padding:6px 12px; font-size:13px; cursor:pointer; }
+  #sat:hover { background:rgba(255,255,255,.2); }
+  #sat.on { background:var(--gold); color:#2a2205; border-color:var(--gold); }
+  #sat .material-icons { font-size:17px; }
   #search { position:absolute; z-index:5; top:64px; left:12px; width:280px; max-width:70vw; }
   #search input { width:100%; padding:10px 12px; border:1px solid #ccc; border-radius:8px;
     font-size:14px; box-shadow:0 1px 6px rgba(0,0,0,.15); }
@@ -33,7 +41,7 @@
     border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.2); padding:10px 12px; font-size:13px; }
   .legend h4 { margin:0 0 6px; font-size:12px; color:#555; text-transform:uppercase; letter-spacing:.4px; }
   .legend .row { display:flex; align-items:center; gap:8px; padding:2px 0; }
-  .legend .dot { width:11px; height:11px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px #ccc; }
+  .legend .material-icons { font-size:17px; }
   .maplibregl-popup-content { font-size:14px; }
   .maplibregl-popup-content b { display:block; margin-bottom:2px; }
   /* Keep the map's own controls clear of the fixed top bar and the corner cards. */
@@ -48,6 +56,10 @@
 <div class="topbar">
   <span class="mark">⚓</span>
   <div><b>Canal Map</b> <span class="sub">UK WATERWAYS</span></div>
+  <span class="spacer"></span>
+  <button id="sat" title="Toggle aerial imagery">
+    <span class="material-icons">satellite</span> Satellite
+  </button>
   <a href="index.html">← About &amp; download</a>
 </div>
 
@@ -61,38 +73,56 @@
 <div id="map"></div>
 
 <script>
-// Facility types — must match the app's palette so the two feel like one product.
+// Facility types — label, colour and Material-icon glyph, matched to the app so
+// the two feel like one product. (Glyphs are Material Icons ligature names.)
 const POI = {
-  lock:        ['Lock', '#C0392B'],
-  water_point: ['Water point', '#2980B9'],
-  sanitary:    ['Elsan / sanitary', '#27AE60'],
-  pumpout:     ['Pump-out', '#8E44AD'],
-  refuse:      ['Refuse disposal', '#7F8C8D'],
-  pub:         ['Pub', '#E67E22'],
-  mooring:     ['Mooring', '#00897B'],
+  lock:        ['Lock', '#C0392B', 'lock'],
+  water_point: ['Water point', '#2980B9', 'water_drop'],
+  sanitary:    ['Elsan / sanitary', '#27AE60', 'wc'],
+  pumpout:     ['Pump-out', '#8E44AD', 'plumbing'],
+  refuse:      ['Refuse disposal', '#7F8C8D', 'delete'],
+  pub:         ['Pub', '#E67E22', 'sports_bar'],
+  mooring:     ['Mooring', '#00897B', 'anchor'],
 };
+const STOP = { closed: '#D32F2F', restricted: '#F9A825', advisory: '#1976D2' };
 
-// Live stoppages feed (same file the app uses); fetched read-only, offline-safe.
 const STOPPAGES_URL =
   'https://raw.githubusercontent.com/danedev2026/Canal-Map/main/data/stoppages.json';
 const SEARCH_URL =
   'https://raw.githubusercontent.com/danedev2026/Canal-Map/main/data/search_index.json';
 
-// Build the facility colour match expression for the circle layer.
-const poiMatch = ['match', ['get', 'type']];
-for (const k in POI) poiMatch.push(k, POI[k][1]);
-poiMatch.push('#555');
-
-// Render the legend.
+// Render the legend with the same icons the map uses.
 const legend = document.getElementById('legend');
 for (const k in POI) {
   const row = document.createElement('div');
   row.className = 'row';
-  row.innerHTML = `<span class="dot" style="background:${POI[k][1]}"></span>${POI[k][0]}`;
+  row.innerHTML =
+    `<span class="material-icons" style="color:${POI[k][1]}">${POI[k][2]}</span>${POI[k][0]}`;
   legend.appendChild(row);
 }
 
-// Register the PMTiles protocol so MapLibre can read our bundled vector tiles.
+// A rendered marker: a white disc + coloured ring + a centred Material glyph —
+// exactly how the app draws its POI/stoppage icons (see _renderIcon in the app).
+function markerImage(glyph, color, px = 88) {
+  const cvs = document.createElement('canvas');
+  cvs.width = px; cvs.height = px;
+  const ctx = cvs.getContext('2d');
+  const c = px / 2;
+  ctx.beginPath();
+  ctx.arc(c, c, c - 4, 0, 2 * Math.PI);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.lineWidth = px * 0.06;
+  ctx.strokeStyle = color;
+  ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.font = `${px * 0.5}px "Material Icons"`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(glyph, c, c);
+  return ctx.getImageData(0, 0, px, px);
+}
+
 const protocol = new pmtiles.Protocol();
 maplibregl.addProtocol('pmtiles', protocol.tile);
 
@@ -112,9 +142,19 @@ const map = new maplibregl.Map({
         attribution:
           '© OpenStreetMap contributors (ODbL); Canal &amp; River Trust; Environment Agency',
       },
+      // Optional aerial imagery — free, no key (same source as the app).
+      satellite: {
+        type: 'raster',
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+        tileSize: 256, maxzoom: 19,
+        attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
+      },
     },
     layers: [
       { id: 'bg', type: 'background', paint: { 'background-color': '#eef3f6' } },
+      // Imagery sits beneath the network so canals + icons stay on top; hidden
+      // until the user turns it on.
+      { id: 'satellite', type: 'raster', source: 'satellite', layout: { visibility: 'none' } },
       {
         id: 'waterway', type: 'line', source: 'canal', 'source-layer': 'network',
         layout: { 'line-cap': 'round', 'line-join': 'round' },
@@ -149,15 +189,6 @@ const map = new maplibregl.Map({
         layout: { 'text-field': ['get', 'ref'], 'text-font': ['OpenSans-Regular'], 'text-size': 11 },
         paint: { 'text-color': '#5d4037', 'text-halo-color': '#fff', 'text-halo-width': 1.6 },
       },
-      {
-        id: 'features', type: 'circle', source: 'canal', 'source-layer': 'features',
-        filter: ['!=', ['get', 'type'], 'bridge'],
-        paint: {
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 2.4, 13, 5, 16, 7],
-          'circle-color': poiMatch,
-          'circle-stroke-color': '#fff', 'circle-stroke-width': 1.4,
-        },
-      },
     ],
   },
 });
@@ -166,20 +197,55 @@ map.addControl(new maplibregl.NavigationControl(), 'top-right');
 map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'imperial' }), 'bottom-left');
 map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 
-// Popups for facilities.
-map.on('click', 'features', (e) => {
-  const p = e.features[0].properties;
-  const meta = POI[p.type];
-  const label = meta ? meta[0] : (p.type || 'Feature');
-  const name = (p.name && p.name.trim()) ? p.name : ('Unnamed ' + label.toLowerCase());
-  new maplibregl.Popup().setLngLat(e.lngLat)
-    .setHTML(`<b>${escapeHtml(name)}</b>${escapeHtml(label)}`).addTo(map);
+// Satellite toggle.
+const satBtn = document.getElementById('sat');
+satBtn.addEventListener('click', () => {
+  const on = map.getLayoutProperty('satellite', 'visibility') !== 'visible';
+  map.setLayoutProperty('satellite', 'visibility', on ? 'visible' : 'none');
+  satBtn.classList.toggle('on', on);
 });
-map.on('mouseenter', 'features', () => map.getCanvas().style.cursor = 'pointer');
-map.on('mouseleave', 'features', () => map.getCanvas().style.cursor = '');
 
-// Live stoppages overlay.
-map.on('load', () => {
+map.on('load', async () => {
+  // Register the marker icons (needs the Material Icons webfont to be ready so
+  // the glyphs draw, not tofu). Then add the facility + stoppage symbol layers.
+  try { await document.fonts.load('88px "Material Icons"'); await document.fonts.ready; } catch (e) {}
+
+  for (const k in POI) map.addImage('poi_' + k, markerImage(POI[k][2], POI[k][1]), { pixelRatio: 2 });
+  map.addImage('poi_default', markerImage('place', '#555'), { pixelRatio: 2 });
+  for (const s in STOP) map.addImage('stop_' + s, markerImage('warning', STOP[s]), { pixelRatio: 2 });
+
+  const iconMatch = ['match', ['get', 'type']];
+  for (const k in POI) iconMatch.push(k, 'poi_' + k);
+  iconMatch.push('poi_default');
+
+  // Facilities as icons, decluttered by collision (icon-allow-overlap: false) —
+  // just like the app, so dense areas thin out instead of blobbing.
+  map.addLayer({
+    id: 'features', type: 'symbol', source: 'canal', 'source-layer': 'features',
+    filter: ['!=', ['get', 'type'], 'bridge'],
+    layout: {
+      'icon-image': iconMatch,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 13, 0.8, 16, 1.05],
+      'icon-allow-overlap': false,
+      'text-field': ['step', ['zoom'], '', 14, ['get', 'name']],
+      'text-font': ['OpenSans-Regular'], 'text-size': 11,
+      'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-optional': true,
+    },
+    paint: { 'text-color': '#37474f', 'text-halo-color': '#fff', 'text-halo-width': 1.4 },
+  });
+
+  map.on('click', 'features', (e) => {
+    const p = e.features[0].properties;
+    const meta = POI[p.type];
+    const label = meta ? meta[0] : (p.type || 'Feature');
+    const name = (p.name && p.name.trim()) ? p.name : ('Unnamed ' + label.toLowerCase());
+    new maplibregl.Popup().setLngLat(e.lngLat)
+      .setHTML(`<b>${escapeHtml(name)}</b>${escapeHtml(label)}`).addTo(map);
+  });
+  map.on('mouseenter', 'features', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'features', () => map.getCanvas().style.cursor = '');
+
+  // Live stoppages overlay, drawn with the same warning icons as the app.
   fetch(STOPPAGES_URL).then(r => r.json()).then(doc => {
     const items = doc.stoppages || [];
     const feats = items.filter(s => s.lat && s.lon).map(s => ({
@@ -189,11 +255,11 @@ map.on('load', () => {
     }));
     map.addSource('stoppages', { type: 'geojson', data: { type: 'FeatureCollection', features: feats } });
     map.addLayer({
-      id: 'stoppages', type: 'circle', source: 'stoppages',
-      paint: {
-        'circle-radius': 7,
-        'circle-color': ['match', ['get', 'state'], 'restricted', '#F9A825', 'advisory', '#1976D2', '#D32F2F'],
-        'circle-stroke-color': '#fff', 'circle-stroke-width': 2,
+      id: 'stoppages', type: 'symbol', source: 'stoppages',
+      layout: {
+        'icon-image': ['match', ['get', 'state'], 'restricted', 'stop_restricted', 'advisory', 'stop_advisory', 'stop_closed'],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 8, 0.55, 13, 0.85, 16, 1.1],
+        'icon-allow-overlap': true,
       },
     });
     map.on('click', 'stoppages', (e) => {
