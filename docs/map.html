@@ -23,12 +23,25 @@
   .topbar .spacer { margin-left:auto; }
   .topbar a { color:#cfe0dc; font-size:14px; text-decoration:none; }
   .topbar a:hover { color:#fff; text-decoration:underline; }
-  #sat { display:flex; align-items:center; gap:6px; background:rgba(255,255,255,.12);
+  .tbtn { display:flex; align-items:center; gap:6px; background:rgba(255,255,255,.12);
     color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:20px;
     padding:6px 12px; font-size:13px; cursor:pointer; }
-  #sat:hover { background:rgba(255,255,255,.2); }
-  #sat.on { background:var(--gold); color:#2a2205; border-color:var(--gold); }
-  #sat .material-icons { font-size:17px; }
+  .tbtn:hover { background:rgba(255,255,255,.2); }
+  .tbtn.on { background:var(--gold); color:#2a2205; border-color:var(--gold); }
+  .tbtn .material-icons { font-size:17px; }
+  /* Routing panel (top-centre, below the bar). */
+  .rpanel { position:absolute; z-index:5; top:64px; left:50%; transform:translateX(-50%);
+    background:#fff; border-radius:10px; box-shadow:0 2px 12px rgba(0,0,0,.25);
+    padding:10px 14px; font-size:14px; display:none; align-items:center; gap:14px; max-width:92vw; }
+  .rpanel.show { display:flex; }
+  .rpanel .stat b { font-size:16px; }
+  .rpanel .stat span { color:#789; font-size:12px; margin-left:4px; }
+  .rpanel .msg { color:#555; }
+  .rpanel .err { color:#c0392b; }
+  .rpanel button { background:var(--green); color:#fff; border:0; border-radius:16px;
+    padding:6px 12px; font-size:13px; cursor:pointer; }
+  .rpanel button.ghost { background:#eef1f0; color:#333; }
+  .rpanel a.dl { color:#2a6fb0; font-size:13px; text-decoration:none; }
   #search { position:absolute; z-index:5; top:64px; left:12px; width:280px; max-width:70vw; }
   #search input { width:100%; padding:10px 12px; border:1px solid #ccc; border-radius:8px;
     font-size:14px; box-shadow:0 1px 6px rgba(0,0,0,.15); }
@@ -37,7 +50,7 @@
   #results li { padding:9px 12px; cursor:pointer; border-bottom:1px solid #f0f0f0; font-size:14px; }
   #results li:hover { background:#f4f7f6; }
   #results li small { color:#789; }
-  .legend { position:absolute; z-index:5; bottom:40px; left:12px; background:#fff;
+  .legend { position:absolute; z-index:5; bottom:64px; left:12px; background:#fff;
     border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.2); padding:10px 12px; font-size:13px; }
   .legend h4 { margin:0 0 6px; font-size:12px; color:#555; text-transform:uppercase; letter-spacing:.4px; }
   .legend .row { display:flex; align-items:center; gap:8px; padding:2px 0; }
@@ -57,11 +70,16 @@
   <span class="mark">⚓</span>
   <div><b>Canal Map</b> <span class="sub">UK WATERWAYS</span></div>
   <span class="spacer"></span>
-  <button id="sat" title="Toggle aerial imagery">
+  <button id="route" class="tbtn" title="Plan a route">
+    <span class="material-icons">directions_boat</span> Route
+  </button>
+  <button id="sat" class="tbtn" title="Toggle aerial imagery">
     <span class="material-icons">satellite</span> Satellite
   </button>
   <a href="index.html">← About &amp; download</a>
 </div>
+
+<div class="rpanel" id="rpanel"></div>
 
 <div id="search">
   <input id="q" type="text" placeholder="Search places &amp; waterways…" autocomplete="off">
@@ -234,7 +252,26 @@ map.on('load', async () => {
     paint: { 'text-color': '#37474f', 'text-halo-color': '#fff', 'text-halo-width': 1.4 },
   });
 
+  // Empty route layers, filled in when a route is computed.
+  const empty = { type: 'FeatureCollection', features: [] };
+  map.addSource('route', { type: 'geojson', data: empty });
+  map.addLayer({
+    id: 'route-line', type: 'line', source: 'route',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#6a1b9a', 'line-width': 5, 'line-opacity': 0.85 },
+  });
+  map.addSource('route-ends', { type: 'geojson', data: empty });
+  map.addLayer({
+    id: 'route-ends', type: 'circle', source: 'route-ends',
+    paint: {
+      'circle-radius': 8,
+      'circle-color': ['match', ['get', 'role'], 'start', '#2e7d32', 'end', '#c62828', '#000'],
+      'circle-stroke-color': '#fff', 'circle-stroke-width': 2.5,
+    },
+  });
+
   map.on('click', 'features', (e) => {
+    if (routeMode) return; // in route mode, clicks place start/end instead
     const p = e.features[0].properties;
     const meta = POI[p.type];
     const label = meta ? meta[0] : (p.type || 'Feature');
@@ -263,6 +300,7 @@ map.on('load', async () => {
       },
     });
     map.on('click', 'stoppages', (e) => {
+      if (routeMode) return;
       const p = e.features[0].properties;
       const dates = [p.start, p.end].filter(Boolean).join(' → ');
       new maplibregl.Popup().setLngLat(e.lngLat).setHTML(
@@ -305,6 +343,224 @@ q.addEventListener('input', () => {
     results.appendChild(li);
   }
   results.style.display = matches.length ? 'block' : 'none';
+});
+
+// ---------------------------------------------------------------------------
+// Routing — a direct port of the app's on-device A* over the bundled graph
+// (routing.graph). Same binary format, same lockmile ETA. £0: it all runs in
+// the browser off the static file, no server.
+// ---------------------------------------------------------------------------
+const MPH_M_PER_MIN = 3 * 1609.34 / 60; // metres per minute at ~3 mph
+const MINS_PER_LOCK = 10;
+const R_EARTH = 6371000;
+
+function haversine(la1, lo1, la2, lo2) {
+  const p1 = la1 * Math.PI / 180, p2 = la2 * Math.PI / 180;
+  const dp = (la2 - la1) * Math.PI / 180, dl = (lo2 - lo1) * Math.PI / 180;
+  const a = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return R_EARTH * 2 * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+function parseGraph(buf) {
+  const dv = new DataView(buf);
+  if (dv.getUint8(0) !== 0x43 || dv.getUint8(1) !== 0x4D ||
+      dv.getUint8(2) !== 0x52 || dv.getUint8(3) !== 0x47) throw new Error('bad magic');
+  let off = 5; // 4 magic + 1 version
+  const n = dv.getUint32(off, true); off += 4;
+  const lon = new Float32Array(n), lat = new Float32Array(n);
+  for (let i = 0; i < n; i++) { lon[i] = dv.getFloat32(off, true); lat[i] = dv.getFloat32(off + 4, true); off += 8; }
+  const isLock = new Uint8Array(n);
+  const lockCount = dv.getUint32(off, true); off += 4;
+  for (let i = 0; i < lockCount; i++) { isLock[dv.getUint32(off, true)] = 1; off += 4; }
+  const edgeCount = dv.getUint32(off, true); off += 4;
+  const ea = new Int32Array(edgeCount), eb = new Int32Array(edgeCount), deg = new Int32Array(n);
+  for (let i = 0; i < edgeCount; i++) {
+    const a = dv.getUint32(off, true), b = dv.getUint32(off + 4, true); off += 8;
+    ea[i] = a; eb[i] = b; deg[a]++; deg[b]++;
+  }
+  const offsets = new Int32Array(n + 1);
+  for (let i = 0; i < n; i++) offsets[i + 1] = offsets[i] + deg[i];
+  const nbr = new Int32Array(edgeCount * 2);
+  const cursor = offsets.slice(0, n);
+  for (let i = 0; i < edgeCount; i++) {
+    const a = ea[i], b = eb[i];
+    nbr[cursor[a]++] = b; nbr[cursor[b]++] = a;
+  }
+  return { n, lon, lat, isLock, offsets, nbr };
+}
+
+function nearestNode(g, lng, lat) {
+  let best = -1, bestD = Infinity;
+  for (let i = 0; i < g.n; i++) {
+    const dl = g.lon[i] - lng, da = g.lat[i] - lat;
+    const d = dl * dl + da * da;
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+
+// Binary min-heap (parallel arrays), keyed by priority.
+function makeHeap() {
+  const pri = [], val = [];
+  const swap = (i, j) => { [pri[i], pri[j]] = [pri[j], pri[i]]; [val[i], val[j]] = [val[j], val[i]]; };
+  return {
+    empty: () => val.length === 0,
+    push(p, v) {
+      pri.push(p); val.push(v);
+      let i = val.length - 1;
+      while (i > 0) { const par = (i - 1) >> 1; if (pri[par] <= pri[i]) break; swap(i, par); i = par; }
+    },
+    pop() {
+      const top = val[0]; const lp = pri.pop(), lv = val.pop();
+      if (val.length) {
+        pri[0] = lp; val[0] = lv; let i = 0; const m = val.length;
+        for (;;) {
+          const l = 2 * i + 1, r = 2 * i + 2; let s = i;
+          if (l < m && pri[l] < pri[s]) s = l;
+          if (r < m && pri[r] < pri[s]) s = r;
+          if (s === i) break; swap(i, s); i = s;
+        }
+      }
+      return top;
+    },
+  };
+}
+
+function computeRoute(g, fromLL, toLL) {
+  const start = nearestNode(g, fromLL[0], fromLL[1]);
+  const goal = nearestNode(g, toLL[0], toLL[1]);
+  if (start < 0 || goal < 0) return null;
+  const n = g.n;
+  const gScore = new Float64Array(n).fill(Infinity);
+  const came = new Int32Array(n).fill(-1);
+  gScore[start] = 0;
+  const h = (a) => haversine(g.lat[a], g.lon[a], g.lat[goal], g.lon[goal]);
+  const open = makeHeap();
+  open.push(h(start), start);
+  while (!open.empty()) {
+    const u = open.pop();
+    if (u === goal) break;
+    const gu = gScore[u];
+    for (let e = g.offsets[u]; e < g.offsets[u + 1]; e++) {
+      const v = g.nbr[e];
+      const ng = gu + haversine(g.lat[u], g.lon[u], g.lat[v], g.lon[v]);
+      if (ng < gScore[v]) { gScore[v] = ng; came[v] = u; open.push(ng + h(v), v); }
+    }
+  }
+  if (came[goal] < 0 && start !== goal) return null;
+  const path = [];
+  for (let cur = goal; cur !== -1; cur = came[cur]) { path.push(cur); if (cur === start) break; }
+  path.reverse();
+  const coords = []; let locks = 0;
+  for (let i = 0; i < path.length; i++) {
+    coords.push([g.lon[path[i]], g.lat[path[i]]]);
+    if (g.isLock[path[i]] && i !== 0 && i !== path.length - 1) locks++;
+  }
+  const metres = gScore[goal];
+  const mins = Math.round(metres / MPH_M_PER_MIN + locks * MINS_PER_LOCK);
+  return { coords, metres, locks, mins };
+}
+
+function fmtEta(mins) {
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function routeGpx(r) {
+  const day = new Date().toISOString().slice(0, 10);
+  let s = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<gpx version="1.1" creator="Canal Map: UK Waterways" xmlns="http://www.topografix.com/GPX/1/1">\n' +
+    `  <metadata><name>Canal Map route — ${day}</name>` +
+    `<desc>${(r.metres / 1609.34).toFixed(1)} miles, ${r.locks} locks.</desc></metadata>\n` +
+    `  <trk><name>Canal Map route — ${day}</name><trkseg>\n`;
+  for (const c of r.coords) s += `    <trkpt lat="${c[1].toFixed(6)}" lon="${c[0].toFixed(6)}"></trkpt>\n`;
+  s += '  </trkseg></trk>\n</gpx>\n';
+  return s;
+}
+
+// ---- Route-mode UI ----
+let graph = null, graphLoading = false, routeMode = false, rStart = null, rEnd = null, lastRoute = null;
+const rpanel = document.getElementById('rpanel');
+const routeBtn = document.getElementById('route');
+
+routeBtn.addEventListener('click', async () => {
+  routeMode = !routeMode;
+  routeBtn.classList.toggle('on', routeMode);
+  map.getCanvas().style.cursor = routeMode ? 'crosshair' : '';
+  if (routeMode) {
+    rStart = rEnd = null; lastRoute = null; clearRoute();
+    if (!graph && !graphLoading) await loadGraph();
+    if (graph) prompt('Click a start point, then a destination.');
+  } else {
+    rStart = rEnd = null; clearRoute(); rpanel.classList.remove('show');
+  }
+});
+
+async function loadGraph() {
+  graphLoading = true;
+  panel(`<span class="msg">Loading routing data…</span>`);
+  try {
+    const buf = await (await fetch('routing.graph')).arrayBuffer();
+    graph = parseGraph(buf);
+  } catch (e) {
+    panel(`<span class="err">Could not load routing data.</span>`);
+  }
+  graphLoading = false;
+}
+
+function panel(html) { rpanel.innerHTML = html; rpanel.classList.add('show'); }
+function prompt(msg) { panel(`<span class="msg">${msg}</span><button class="ghost" id="rx">Clear</button>`); wire(); }
+function wire() {
+  const x = document.getElementById('rx');
+  if (x) x.onclick = () => { rStart = rEnd = null; lastRoute = null; clearRoute(); if (routeMode) prompt('Click a start point, then a destination.'); };
+  const dl = document.getElementById('rdl');
+  if (dl && lastRoute) {
+    const blob = new Blob([routeGpx(lastRoute)], { type: 'application/gpx+xml' });
+    dl.href = URL.createObjectURL(blob);
+    dl.download = `canal-map-route-${new Date().toISOString().slice(0, 10)}.gpx`;
+  }
+}
+
+function clearRoute() {
+  if (!map.getSource('route')) return;
+  const empty = { type: 'FeatureCollection', features: [] };
+  map.getSource('route').setData(empty);
+  map.getSource('route-ends').setData(empty);
+}
+
+function drawEnds() {
+  const feats = [];
+  if (rStart) feats.push({ type: 'Feature', geometry: { type: 'Point', coordinates: rStart }, properties: { role: 'start' } });
+  if (rEnd) feats.push({ type: 'Feature', geometry: { type: 'Point', coordinates: rEnd }, properties: { role: 'end' } });
+  map.getSource('route-ends').setData({ type: 'FeatureCollection', features: feats });
+}
+
+map.on('click', (e) => {
+  if (!routeMode || !graph) return;
+  const ll = [e.lngLat.lng, e.lngLat.lat];
+  if (!rStart || lastRoute) { rStart = ll; rEnd = null; lastRoute = null; clearRoute(); drawEnds(); prompt('Now click a destination.'); return; }
+  rEnd = ll; drawEnds();
+  panel(`<span class="msg">Finding route…</span>`);
+  // Let the panel paint before the (sync) A* runs.
+  setTimeout(() => {
+    const r = computeRoute(graph, rStart, rEnd);
+    if (!r) {
+      panel(`<span class="err">No through route by water — the points are on separately-mapped waterways.</span>` +
+        `<button class="ghost" id="rx">Clear</button>`); wire(); return;
+    }
+    lastRoute = r;
+    map.getSource('route').setData({
+      type: 'FeatureCollection',
+      features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: r.coords } }],
+    });
+    panel(
+      `<span class="stat"><b>${(r.metres / 1609.34).toFixed(1)}</b><span>mi</span></span>` +
+      `<span class="stat"><b>${r.locks}</b><span>locks</span></span>` +
+      `<span class="stat"><b>${fmtEta(r.mins)}</b><span>approx</span></span>` +
+      `<a class="dl" id="rdl">Download GPX</a>` +
+      `<button class="ghost" id="rx">Clear</button>`);
+    wire();
+  }, 20);
 });
 
 function escapeHtml(s) {
