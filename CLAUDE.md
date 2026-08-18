@@ -38,14 +38,20 @@ runtime fetch is the daily `stoppages.json` (served as a static file from the
 GitHub repo, refreshed by a GitHub Action), with offline fallback. Never add
 anything needing a writable backend (breaks £0).
 
-## Status — through v1.5 COMPLETE (in closed testing)
+## Status — through v1.6 COMPLETE (in closed testing)
 All of PLAN.md plus many refinements, built and verified on a real S10+ and the
 emulator: nationwide offline map, POIs with icons, search + near-me,
 GPS/follow-me, live CRT stoppages, tidal hazards, place/bridge/POI labels, and
 on-device route planning with lockmile ETAs. Later releases added:
 - v1.3 moorings, "Route here", boat log + export, planned-stoppages toggle.
 - v1.4 optional online satellite (Esri), detailed journey plan, CSV export.
-- v1.5 (current, versionCode 7): light/dark mode + colour themes; save routes
+- v1.6 (current, versionCode 9): "Stoppages & notices" list screen (search +
+  closure/restriction/advisory filters, show-on-map); "Popular routes" section
+  (Cheshire, Four Counties, Warwickshire, Stourport, Avon, Llangollen) whose
+  polylines are precomputed by build_popular_routes.py over the routing graph
+  and bundled — tap to draw + save/export. Themed home-screen launcher icon was
+  tried and reverted (icon art is full-bleed, so only the corners would tint).
+- v1.5 (versionCode 7): light/dark mode + colour themes; save routes
   in-app; descriptive boat log (nearest-place label + editable note) with
   single-entry delete; "Save to device" (SAF) export so files land in Files;
   route GPX now embeds along-route stoppages + a date; component-stitching in
