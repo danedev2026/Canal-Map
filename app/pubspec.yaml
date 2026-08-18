@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # <versionName>+<versionCode>. Play requires versionCode to strictly increase
 # on EVERY upload — bump the +N before each new bundle.
-version: 1.5.1+8
+version: 1.6.0+9
 
 environment:
   sdk: ^3.12.2
@@ -84,6 +84,7 @@ flutter:
     - assets/search_index.json
     - assets/stoppages.json
     - assets/routing.graph
+    - assets/popular_routes.json
     - assets/glyphs/OpenSans-Regular/
 
   # To add assets to your application, add an assets section, like this:

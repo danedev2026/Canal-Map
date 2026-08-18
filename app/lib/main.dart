@@ -15,11 +15,14 @@ import 'attribution.dart';
 import 'boat_log.dart';
 import 'boat_log_screen.dart';
 import 'exporter.dart';
+import 'popular_routes.dart';
+import 'popular_routes_screen.dart';
 import 'routing.dart';
 import 'saved_routes.dart';
 import 'saved_routes_screen.dart';
 import 'settings_screen.dart';
 import 'stoppages.dart';
+import 'stoppages_list_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -387,8 +390,12 @@ class _MapScreenState extends State<MapScreen> {
         Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => BoatLogScreen(
                 getLocation: _currentLatLon, nearestPlace: _nearestPlaceLabel)));
+      case 'notices':
+        _openStoppagesList();
       case 'saved':
         _openSavedRoutes();
+      case 'popular':
+        _openPopularRoutes();
       case 'settings':
         Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const SettingsScreen()));
@@ -833,6 +840,24 @@ class _MapScreenState extends State<MapScreen> {
     return 'Route $stamp';
   }
 
+  /// Browse all live stoppages/notices in a list; if the user picks one,
+  /// fly the map to it and open its detail sheet.
+  Future<void> _openStoppagesList() async {
+    final picked = await Navigator.of(context).push<Stoppage>(MaterialPageRoute(
+      builder: (_) => StoppagesListScreen(
+        stoppages: _stoppages,
+        freshness: _stoppagesFreshness,
+      ),
+    ));
+    if (picked == null) return;
+    await _controller?.animateCamera(
+        CameraUpdate.newLatLngZoom(LatLng(picked.lat, picked.lon), 13));
+    if (mounted) {
+      _showStoppageSheet(
+          Map<String, dynamic>.from(picked.toFeature()['properties'] as Map));
+    }
+  }
+
   /// Open the saved-routes list; if one is picked, draw it on the map.
   Future<void> _openSavedRoutes() async {
     final picked = await Navigator.of(context).push<SavedRoute>(
@@ -841,19 +866,37 @@ class _MapScreenState extends State<MapScreen> {
     await _loadSavedRoute(picked);
   }
 
-  Future<void> _loadSavedRoute(SavedRoute sr) async {
-    _graph ??= await RouteGraph.load('assets/routing.graph');
-    final r = sr.toResult();
+  Future<void> _loadSavedRoute(SavedRoute sr) => _displayRoute(sr.toResult());
+
+  /// Browse popular cruising routes; if one is picked, draw it on the map.
+  Future<void> _openPopularRoutes() async {
+    final routes = await PopularRoute.load();
+    if (!mounted) return;
+    final picked = await Navigator.of(context).push<PopularRoute>(
+        MaterialPageRoute(builder: (_) => PopularRoutesScreen(routes: routes)));
+    if (picked == null) return;
+    await _displayRoute(picked.toResult());
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 3),
+        content: Text('${picked.name} — tap the panel for the plan, '
+            'or save it to your routes'),
+      ));
+    }
+  }
+
+  /// Draw a ready-made RouteResult on the map (saved route or popular route):
+  /// enter route mode, show it, and frame it. No graph needed.
+  Future<void> _displayRoute(RouteResult r) async {
     setState(() {
       _routeMode = true;
-      _routeStart = sr.start;
-      _routeEnd = sr.end;
+      _routeStart = r.polyline.first;
+      _routeEnd = r.polyline.last;
       _route = r;
       _routeError = null;
     });
     await _controller?.setGeoJsonSource('route', _routeLineFc(r));
     await _drawRouteEnds();
-    // Frame the whole route.
     final b = _routeBounds(r.polyline);
     await _controller?.animateCamera(CameraUpdate.newLatLngBounds(b,
         left: 40, right: 40, top: 80, bottom: 160));
@@ -1177,6 +1220,7 @@ class _MapScreenState extends State<MapScreen> {
     final dates = [p['start'], p['end']]
         .map((e) => (e ?? '').toString())
         .where((e) => e.isNotEmpty)
+        .map((e) => e.length >= 10 ? e.substring(0, 10) : e)
         .join(' → ');
 
     showModalBottomSheet(
@@ -1406,6 +1450,13 @@ class _MapScreenState extends State<MapScreen> {
               ),
               const PopupMenuDivider(),
               const PopupMenuItem(
+                value: 'notices',
+                child: ListTile(
+                  leading: Icon(Icons.warning_amber_rounded),
+                  title: Text('Stoppages & notices'),
+                  contentPadding: EdgeInsets.zero),
+              ),
+              const PopupMenuItem(
                 value: 'log',
                 child: ListTile(
                   leading: Icon(Icons.add_location_alt),
@@ -1424,6 +1475,13 @@ class _MapScreenState extends State<MapScreen> {
                 child: ListTile(
                   leading: Icon(Icons.route),
                   title: Text('Saved routes'),
+                  contentPadding: EdgeInsets.zero),
+              ),
+              const PopupMenuItem(
+                value: 'popular',
+                child: ListTile(
+                  leading: Icon(Icons.star_outline),
+                  title: Text('Popular routes'),
                   contentPadding: EdgeInsets.zero),
               ),
               const PopupMenuDivider(),
