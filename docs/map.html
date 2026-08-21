@@ -65,6 +65,8 @@
   .legend .row { display:flex; align-items:center; gap:8px; padding:3px 0; cursor:pointer; }
   .legend .row input { margin:0; accent-color:var(--green); }
   .legend .material-icons { font-size:17px; }
+  .legend .ln-head { font-size:11px; color:#889; text-transform:uppercase;
+    letter-spacing:.4px; margin:9px 0 2px; border-top:1px solid #eee; padding-top:8px; }
   .maplibregl-popup-content { font-size:14px; }
   .maplibregl-popup-content b { display:block; margin-bottom:2px; }
   /* Keep the map's own controls clear of the fixed top bar and the corner cards. */
@@ -113,8 +115,10 @@
 </div>
 
 <details class="legend" id="legend" open>
-  <summary>Facilities</summary>
+  <summary>Map key — untick to hide</summary>
   <div id="legend-rows"></div>
+  <div class="ln-head">Notices</div>
+  <div id="legend-notices"></div>
 </details>
 <div class="banner" id="banner" style="display:none"></div>
 <div id="map"></div>
@@ -151,8 +155,12 @@ function legendIcon(glyph, color) {
   return `<span class="material-icons" style="color:${color}">${glyph}</span>`;
 }
 
-// The facilities legend doubles as show/hide toggles: untick a type to remove it.
-const hiddenTypes = new Set();
+// The map key doubles as show/hide toggles: untick a facility type, the winding
+// holes, or a notice severity to remove it from the map (and from the PDF plan).
+const hiddenTypes = new Set();   // facility types hidden
+const hiddenStates = new Set();  // stoppage severities hidden
+const STOP_LABEL = { closed: 'Closures', restricted: 'Restrictions', advisory: 'Advisories' };
+
 const legendRows = document.getElementById('legend-rows');
 for (const k in POI) {
   const row = document.createElement('label');
@@ -162,11 +170,37 @@ for (const k in POI) {
     legendIcon(POI[k][2], POI[k][1]) + `<span>${POI[k][0]}</span>`;
   legendRows.appendChild(row);
 }
-legendRows.addEventListener('change', (e) => {
-  const t = e.target && e.target.getAttribute('data-type');
-  if (!t) return;
-  if (e.target.checked) hiddenTypes.delete(t); else hiddenTypes.add(t);
-  applyFeatureFilter();
+// Winding holes are a separate overlay layer, toggled by its own visibility.
+const windRow = document.createElement('label');
+windRow.className = 'row';
+windRow.innerHTML = `<input type="checkbox" checked data-layer="winding">` +
+  legendIcon('refresh', '#3949ab') + `<span>Winding hole</span>`;
+legendRows.appendChild(windRow);
+
+const legendNotices = document.getElementById('legend-notices');
+for (const s in STOP) {
+  const row = document.createElement('label');
+  row.className = 'row';
+  row.innerHTML = `<input type="checkbox" checked data-state="${s}">` +
+    legendIcon('warning', STOP[s]) + `<span>${STOP_LABEL[s]}</span>`;
+  legendNotices.appendChild(row);
+}
+
+document.getElementById('legend').addEventListener('change', (e) => {
+  const t = e.target;
+  if (!t || t.type !== 'checkbox') return;
+  const type = t.getAttribute('data-type');
+  const state = t.getAttribute('data-state');
+  const layer = t.getAttribute('data-layer');
+  if (type) {
+    if (t.checked) hiddenTypes.delete(type); else hiddenTypes.add(type);
+    applyFeatureFilter();
+  } else if (state) {
+    if (t.checked) hiddenStates.delete(state); else hiddenStates.add(state);
+    applyStoppageFilter();
+  } else if (layer && map.getLayer(layer)) {
+    map.setLayoutProperty(layer, 'visibility', t.checked ? 'visible' : 'none');
+  }
 });
 
 function applyFeatureFilter() {
@@ -175,6 +209,13 @@ function applyFeatureFilter() {
   map.setFilter('features', hiddenTypes.size
     ? ['all', base, ['!', ['in', ['get', 'type'], ['literal', [...hiddenTypes]]]]]
     : base);
+}
+
+function applyStoppageFilter() {
+  if (!map.getLayer('stoppages')) return;
+  map.setFilter('stoppages', hiddenStates.size
+    ? ['!', ['in', ['get', 'state'], ['literal', [...hiddenStates]]]]
+    : null);
 }
 
 // A rendered marker: a white disc + coloured ring + a centred Material glyph —
@@ -222,6 +263,7 @@ maplibregl.addProtocol('pmtiles', protocol.tile);
 const map = new maplibregl.Map({
   container: 'map',
   attributionControl: false, // added compact below so it doesn't sprawl
+  preserveDrawingBuffer: true, // lets us snapshot the route map into the PDF
   center: [-1.90, 52.48], // Birmingham — the canal heartland
   zoom: 8,
   maxZoom: 16,
@@ -305,6 +347,7 @@ map.on('load', async () => {
 
   for (const k in POI) map.addImage('poi_' + k, markerImage(POI[k][2], POI[k][1]), { pixelRatio: 2 });
   map.addImage('poi_default', markerImage('place', '#555'), { pixelRatio: 2 });
+  map.addImage('poi_winding', markerImage('refresh', '#3949ab'), { pixelRatio: 2 });
   for (const s in STOP) map.addImage('stop_' + s, markerImage('warning', STOP[s]), { pixelRatio: 2 });
 
   const iconMatch = ['match', ['get', 'type']];
@@ -344,6 +387,45 @@ map.on('load', async () => {
       'circle-stroke-color': '#fff', 'circle-stroke-width': 2.5,
     },
   });
+
+  // Day markers: numbered pills at each overnight boundary of a multi-day route.
+  map.addSource('route-days', { type: 'geojson', data: empty });
+  map.addLayer({
+    id: 'route-days-dot', type: 'circle', source: 'route-days',
+    paint: {
+      'circle-radius': 11, 'circle-color': '#16302b',
+      'circle-stroke-color': '#fff', 'circle-stroke-width': 2,
+    },
+  });
+  map.addLayer({
+    id: 'route-days-num', type: 'symbol', source: 'route-days',
+    layout: {
+      'text-field': ['get', 'label'], 'text-font': ['OpenSans-Regular'],
+      'text-size': 12, 'text-allow-overlap': true, 'text-ignore-placement': true,
+    },
+    paint: { 'text-color': '#fff' },
+  });
+
+  // Winding holes (turning points) overlay — a small separate GeoJSON.
+  fetch('winding_holes.json').then(r => r.json()).then(pts => {
+    const feats = pts.map(p => ({ type: 'Feature', geometry: { type: 'Point', coordinates: p }, properties: {} }));
+    map.addSource('winding', { type: 'geojson', data: { type: 'FeatureCollection', features: feats } });
+    map.addLayer({
+      id: 'winding', type: 'symbol', source: 'winding',
+      layout: {
+        'icon-image': 'poi_winding',
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 8, 0.45, 13, 0.72, 16, 0.95],
+        'icon-allow-overlap': false,
+      },
+    });
+    map.on('click', 'winding', (e) => {
+      if (routeMode) return;
+      new maplibregl.Popup().setLngLat(e.lngLat)
+        .setHTML('<b>Winding hole</b>Turning point — where you can turn a full-length boat around.').addTo(map);
+    });
+    map.on('mouseenter', 'winding', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'winding', () => map.getCanvas().style.cursor = '');
+  }).catch(() => {});
 
   map.on('click', 'features', (e) => {
     if (routeMode) return; // in route mode, clicks place start/end instead
@@ -541,6 +623,53 @@ function fmtEta(mins) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+// Numbered pills at each overnight boundary of a multi-day route ("Day 2"…).
+function drawDayMarkers(r, hpd) {
+  if (!map.getSource('route-days')) return;
+  const poly = r.coords, totalMins = r.mins, perDay = Math.max(1, hpd) * 60;
+  const days = Math.max(1, Math.ceil(totalMins / perDay));
+  const cum = [0];
+  for (let i = 1; i < poly.length; i++)
+    cum[i] = cum[i - 1] + haversine(poly[i - 1][1], poly[i - 1][0], poly[i][1], poly[i][0]);
+  const total = cum[cum.length - 1] || 1;
+  const feats = [];
+  for (let k = 1; k < days; k++) {
+    const target = (k * perDay / totalMins) * total;
+    let idx = 0;
+    while (idx < cum.length - 1 && cum[idx] < target) idx++;
+    feats.push({
+      type: 'Feature', geometry: { type: 'Point', coordinates: poly[idx] },
+      properties: { label: String(k + 1) },
+    });
+  }
+  map.getSource('route-days').setData({ type: 'FeatureCollection', features: feats });
+}
+
+// Snapshot the route framed on the map, as a JPEG data URI, for the PDF plan.
+// Facilities/notices are hidden for a clean overview; the view is restored after.
+async function captureRouteImage(r) {
+  if (r.coords.length < 2) return '';
+  const saved = { center: map.getCenter(), zoom: map.getZoom(), bearing: map.getBearing() };
+  const hide = ['features', 'winding', 'stoppages'].filter(id => map.getLayer(id));
+  const vis = hide.map(id => map.getLayoutProperty(id, 'visibility') || 'visible');
+  hide.forEach(id => map.setLayoutProperty(id, 'visibility', 'none'));
+  let minLng = 180, minLat = 90, maxLng = -180, maxLat = -90;
+  for (const c of r.coords) {
+    minLng = Math.min(minLng, c[0]); maxLng = Math.max(maxLng, c[0]);
+    minLat = Math.min(minLat, c[1]); maxLat = Math.max(maxLat, c[1]);
+  }
+  map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 50, animate: false });
+  await new Promise(res => {
+    const t = setTimeout(res, 2500);
+    map.once('idle', () => { clearTimeout(t); res(); });
+  });
+  let url = '';
+  try { url = map.getCanvas().toDataURL('image/jpeg', 0.82); } catch (e) { url = ''; }
+  hide.forEach((id, i) => map.setLayoutProperty(id, 'visibility', vis[i]));
+  map.jumpTo(saved);
+  return url;
+}
+
 function routeGpx(r) {
   const day = new Date().toISOString().slice(0, 10);
   let s = '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -583,12 +712,13 @@ function routeItinerary(r) {
   for (const h of hits) if (h.e.type === 'waterway') {
     if (!waterways.length || waterways[waterways.length - 1] !== h.e.name) waterways.push(h.e.name);
   }
-  const facilities = hits.filter(h => POI[h.e.type]);
+  // Respect the legend toggles: a hidden facility type is left off the plan too.
+  const facilities = hits.filter(h => POI[h.e.type] && !hiddenTypes.has(h.e.type));
   return { waterways, facilities };
 }
 
 // A branded, print-friendly itinerary (browser Print → Save as PDF; £0, no lib).
-function planHtml(r, hpd) {
+function planHtml(r, hpd, img) {
   const totalMiles = r.metres / 1609.34, totalMins = r.mins, perDay = hpd * 60;
   const days = Math.max(1, Math.ceil(totalMins / perDay));
   const it = routeItinerary(r);
@@ -623,12 +753,14 @@ function planHtml(r, hpd) {
   td.mi{white-space:nowrap;color:#667;width:60px;}
   tr.day td{background:#16302b;color:#fff;font-weight:600;border:0;}
   .muted{color:#889;}
+  .rmap{width:100%;border:1px solid #dde3e0;border-radius:8px;margin:16px 0;display:block;}
   footer{margin-top:22px;color:#889;font-size:12px;border-top:1px solid #eee;padding-top:10px;}
   @media print{body{padding:0;}}
 </style></head><body>
   <div class="head"><span class="mk">&#9875;</span><div><b>Canal Map</b> <span>UK WATERWAYS · route plan</span></div></div>
   <div class="meta">Produced ${today} by Canal Map: UK Waterways. Distances, lock counts and times are estimates — always check current notices and conditions before setting off.</div>
   <div class="summary"><b>${totalMiles.toFixed(1)} miles</b> · <b>${r.locks} locks</b> · about <b>${fmtEta(totalMins)}</b> cruising — roughly <b>${days} day${days === 1 ? '' : 's'}</b> at ${hpd} hours/day.</div>
+  ${img ? `<img class="rmap" src="${img}" alt="Map of the route">` : ''}
   <h2>Waterways</h2><p>${wlist}</p>
   <h2>Along the way</h2>
   <table><tbody>${rows}</tbody></table>
@@ -636,15 +768,24 @@ function planHtml(r, hpd) {
 </body></html>`;
 }
 
-function printPlan(r) {
+async function printPlan(r) {
   const el = document.getElementById('hpd');
   const hpd = Math.min(14, Math.max(1, parseInt((el && el.value) || '6', 10) || 6));
+  // Open synchronously (keeps the pop-up out of the blocker), show a placeholder,
+  // then snapshot the route map and rewrite the document.
   const w = window.open('', '_blank');
   if (!w) { alert('Please allow pop-ups to download the plan.'); return; }
-  w.document.write(planHtml(r, hpd));
+  w.document.write('<!doctype html><meta charset="utf-8"><title>Canal Map route plan</title>' +
+    '<body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;padding:32px;color:#555">' +
+    'Preparing your route plan…</body>');
+  w.document.close();
+  let img = '';
+  try { img = await captureRouteImage(r); } catch (e) { img = ''; }
+  w.document.open();
+  w.document.write(planHtml(r, hpd, img));
   w.document.close();
   w.focus();
-  setTimeout(() => { w.print(); }, 500);
+  setTimeout(() => { try { w.print(); } catch (e) {} }, 700);
 }
 
 // ---- Route-mode UI ----
@@ -691,6 +832,11 @@ function wire() {
   }
   const pl = document.getElementById('rplan');
   if (pl && lastRoute) pl.onclick = () => printPlan(lastRoute);
+  const hpdEl = document.getElementById('hpd');
+  if (hpdEl && lastRoute) hpdEl.addEventListener('input', () => {
+    const v = Math.min(14, Math.max(1, parseInt(hpdEl.value || '6', 10) || 6));
+    drawDayMarkers(lastRoute, v);
+  });
 }
 
 function clearRoute() {
@@ -698,6 +844,7 @@ function clearRoute() {
   const empty = { type: 'FeatureCollection', features: [] };
   map.getSource('route').setData(empty);
   map.getSource('route-ends').setData(empty);
+  if (map.getSource('route-days')) map.getSource('route-days').setData(empty);
 }
 
 function drawEnds() {
@@ -725,6 +872,7 @@ map.on('click', (e) => {
       type: 'FeatureCollection',
       features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: r.coords } }],
     });
+    drawDayMarkers(r, 6);
     panel(
       `<span class="stat"><b>${(r.metres / 1609.34).toFixed(1)}</b><span>mi</span></span>` +
       `<span class="stat"><b>${r.locks}</b><span>locks</span></span>` +
