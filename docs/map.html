@@ -34,7 +34,8 @@
   /* Routing panel (top-centre, below the bar). */
   .rpanel { position:absolute; z-index:5; top:64px; left:50%; transform:translateX(-50%);
     background:#fff; border-radius:10px; box-shadow:0 2px 12px rgba(0,0,0,.25);
-    padding:10px 14px; font-size:14px; display:none; align-items:center; gap:14px; max-width:92vw; }
+    padding:10px 14px; font-size:14px; display:none; align-items:center;
+    gap:12px; row-gap:8px; flex-wrap:wrap; max-width:92vw; }
   .rpanel.show { display:flex; }
   .rpanel .stat b { font-size:16px; }
   .rpanel .stat span { color:#789; font-size:12px; margin-left:4px; }
@@ -43,7 +44,10 @@
   .rpanel button { background:var(--green); color:#fff; border:0; border-radius:16px;
     padding:6px 12px; font-size:13px; cursor:pointer; }
   .rpanel button.ghost { background:#eef1f0; color:#333; }
-  .rpanel a.dl { color:#2a6fb0; font-size:13px; text-decoration:none; }
+  .rpanel a.dl { color:#2a6fb0; font-size:13px; text-decoration:none; cursor:pointer; }
+  .rpanel .hpd { font-size:13px; color:#555; display:flex; align-items:center; gap:5px; }
+  .rpanel .hpd input { width:46px; padding:3px 5px; border:1px solid #ccc;
+    border-radius:6px; font-size:13px; }
   #search { position:absolute; z-index:5; top:64px; left:12px; width:280px; max-width:70vw; }
   #search input { width:100%; padding:10px 12px; border:1px solid #ccc; border-radius:8px;
     font-size:14px; box-shadow:0 1px 6px rgba(0,0,0,.15); }
@@ -58,7 +62,8 @@
     font-weight:600; cursor:pointer; list-style:none; }
   .legend summary::-webkit-details-marker { display:none; }
   .legend[open] summary { margin-bottom:6px; }
-  .legend .row { display:flex; align-items:center; gap:8px; padding:2px 0; }
+  .legend .row { display:flex; align-items:center; gap:8px; padding:3px 0; cursor:pointer; }
+  .legend .row input { margin:0; accent-color:var(--green); }
   .legend .material-icons { font-size:17px; }
   .maplibregl-popup-content { font-size:14px; }
   .maplibregl-popup-content b { display:block; margin-bottom:2px; }
@@ -118,7 +123,7 @@
 // Facility types — label, colour and Material-icon glyph, matched to the app so
 // the two feel like one product. (Glyphs are Material Icons ligature names.)
 const POI = {
-  lock:        ['Lock', '#C0392B', 'lock'],
+  lock:        ['Lock', '#37474F', 'gate'], // charcoal + lock-gate chevrons (not a red padlock)
   water_point: ['Water point', '#2980B9', 'water_drop'],
   sanitary:    ['Elsan / sanitary', '#27AE60', 'wc'],
   pumpout:     ['Pump-out', '#8E44AD', 'plumbing'],
@@ -133,14 +138,43 @@ const STOPPAGES_URL =
 const SEARCH_URL =
   'https://raw.githubusercontent.com/danedev2026/Canal-Map/main/data/search_index.json';
 
-// Render the legend with the same icons the map uses.
+// Small icon for the legend/UI, matching the map: a Material glyph, or the
+// custom lock-gate chevrons (the app-icon motif) drawn as inline SVG.
+function legendIcon(glyph, color) {
+  if (glyph === 'gate') {
+    return `<svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true" ` +
+      `style="vertical-align:middle"><g fill="none" stroke="${color}" ` +
+      `stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">` +
+      `<polyline points="6,12.5 12,7.5 18,12.5"/>` +
+      `<polyline points="6,17 12,12 18,17"/></g></svg>`;
+  }
+  return `<span class="material-icons" style="color:${color}">${glyph}</span>`;
+}
+
+// The facilities legend doubles as show/hide toggles: untick a type to remove it.
+const hiddenTypes = new Set();
 const legendRows = document.getElementById('legend-rows');
 for (const k in POI) {
-  const row = document.createElement('div');
+  const row = document.createElement('label');
   row.className = 'row';
   row.innerHTML =
-    `<span class="material-icons" style="color:${POI[k][1]}">${POI[k][2]}</span>${POI[k][0]}`;
+    `<input type="checkbox" checked data-type="${k}">` +
+    legendIcon(POI[k][2], POI[k][1]) + `<span>${POI[k][0]}</span>`;
   legendRows.appendChild(row);
+}
+legendRows.addEventListener('change', (e) => {
+  const t = e.target && e.target.getAttribute('data-type');
+  if (!t) return;
+  if (e.target.checked) hiddenTypes.delete(t); else hiddenTypes.add(t);
+  applyFeatureFilter();
+});
+
+function applyFeatureFilter() {
+  if (!map.getLayer('features')) return;
+  const base = ['!=', ['get', 'type'], 'bridge'];
+  map.setFilter('features', hiddenTypes.size
+    ? ['all', base, ['!', ['in', ['get', 'type'], ['literal', [...hiddenTypes]]]]]
+    : base);
 }
 
 // A rendered marker: a white disc + coloured ring + a centred Material glyph —
@@ -157,11 +191,28 @@ function markerImage(glyph, color, px = 88) {
   ctx.lineWidth = px * 0.06;
   ctx.strokeStyle = color;
   ctx.stroke();
-  ctx.fillStyle = color;
-  ctx.font = `${px * 0.5}px "Material Icons"`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(glyph, c, c);
+  if (glyph === 'gate') {
+    // Canal lock: two gate chevrons (the motif from the app icon). Reads as a
+    // lock, not a padlock; neutral charcoal keeps it clear of the red alerts.
+    ctx.strokeStyle = color;
+    ctx.lineWidth = px * 0.075;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const w = px * 0.22, h = px * 0.12;
+    for (const cy of [c - px * 0.10, c + px * 0.14]) {
+      ctx.beginPath();
+      ctx.moveTo(c - w, cy + h);
+      ctx.lineTo(c, cy - h);
+      ctx.lineTo(c + w, cy + h);
+      ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = color;
+    ctx.font = `${px * 0.5}px "Material Icons"`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(glyph, c, c);
+  }
   return ctx.getImageData(0, 0, px, px);
 }
 
@@ -502,6 +553,100 @@ function routeGpx(r) {
   return s;
 }
 
+// Waterways traversed + facilities passed (from the bundled search index), each
+// with along-route mileage — powers the printable plan. Mirrors the app.
+function routeItinerary(r) {
+  const poly = r.coords; // [lon,lat]
+  if (poly.length < 2 || !index.length) return { waterways: [], facilities: [] };
+  const cum = [0];
+  for (let i = 1; i < poly.length; i++)
+    cum[i] = cum[i - 1] + haversine(poly[i - 1][1], poly[i - 1][0], poly[i][1], poly[i][0]);
+  let minLa = 90, maxLa = -90, minLo = 180, maxLo = -180;
+  for (const p of poly) {
+    minLa = Math.min(minLa, p[1]); maxLa = Math.max(maxLa, p[1]);
+    minLo = Math.min(minLo, p[0]); maxLo = Math.max(maxLo, p[0]);
+  }
+  const step = Math.max(1, Math.ceil(poly.length / 600));
+  const margin = 0.01, thr = 250, hits = [];
+  for (const e of index) {
+    if (e.lat < minLa - margin || e.lat > maxLa + margin ||
+        e.lon < minLo - margin || e.lon > maxLo + margin) continue;
+    let best = Infinity, bi = 0;
+    for (let i = 0; i < poly.length; i += step) {
+      const d = haversine(e.lat, e.lon, poly[i][1], poly[i][0]);
+      if (d < best) { best = d; bi = i; }
+    }
+    if (best <= thr) hits.push({ e, miles: cum[bi] / 1609.34 });
+  }
+  hits.sort((a, b) => a.miles - b.miles);
+  const waterways = [];
+  for (const h of hits) if (h.e.type === 'waterway') {
+    if (!waterways.length || waterways[waterways.length - 1] !== h.e.name) waterways.push(h.e.name);
+  }
+  const facilities = hits.filter(h => POI[h.e.type]);
+  return { waterways, facilities };
+}
+
+// A branded, print-friendly itinerary (browser Print → Save as PDF; £0, no lib).
+function planHtml(r, hpd) {
+  const totalMiles = r.metres / 1609.34, totalMins = r.mins, perDay = hpd * 60;
+  const days = Math.max(1, Math.ceil(totalMins / perDay));
+  const it = routeItinerary(r);
+  const dayOf = (miles) =>
+    Math.min(days, Math.floor(((miles / totalMiles) * totalMins) / perDay) + 1);
+  const today = new Date().toLocaleDateString('en-GB',
+    { day: 'numeric', month: 'long', year: 'numeric' });
+  let rows = '', cur = 0;
+  for (const f of it.facilities) {
+    const d = dayOf(f.miles);
+    if (d !== cur) {
+      cur = d;
+      const end = Math.min(totalMiles, (cur * perDay / totalMins) * totalMiles);
+      rows += `<tr class="day"><td colspan="3">Day ${d} — to about ${end.toFixed(1)} mi</td></tr>`;
+    }
+    rows += `<tr><td class="mi">${f.miles.toFixed(1)}</td>` +
+      `<td>${escapeHtml(POI[f.e.type][0])}</td><td>${escapeHtml(f.e.name || '')}</td></tr>`;
+  }
+  if (!rows) rows = `<tr><td colspan="3" class="muted">No mapped facilities within 250 m of this route.</td></tr>`;
+  const wlist = it.waterways.length ? it.waterways.map(escapeHtml).join(' &rarr; ') : '—';
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Canal Map route plan</title><style>
+  body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1f2a28;margin:0;padding:32px;line-height:1.5;}
+  .head{display:flex;align-items:center;gap:10px;border-bottom:3px solid #16302b;padding-bottom:10px;}
+  .head .mk{color:#d9a62a;font-size:26px;}.head b{font-size:20px;}.head span{color:#667;font-size:13px;}
+  .meta{color:#667;font-size:13px;margin:10px 0 18px;}
+  .summary{background:#f4f7f6;border-left:4px solid #16302b;border-radius:6px;padding:12px 14px;font-size:15px;}
+  .summary b{font-size:17px;}
+  h2{color:#16302b;margin:22px 0 6px;font-size:16px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  td{padding:5px 8px;border-bottom:1px solid #eee;vertical-align:top;}
+  td.mi{white-space:nowrap;color:#667;width:60px;}
+  tr.day td{background:#16302b;color:#fff;font-weight:600;border:0;}
+  .muted{color:#889;}
+  footer{margin-top:22px;color:#889;font-size:12px;border-top:1px solid #eee;padding-top:10px;}
+  @media print{body{padding:0;}}
+</style></head><body>
+  <div class="head"><span class="mk">&#9875;</span><div><b>Canal Map</b> <span>UK WATERWAYS · route plan</span></div></div>
+  <div class="meta">Produced ${today} by Canal Map: UK Waterways. Distances, lock counts and times are estimates — always check current notices and conditions before setting off.</div>
+  <div class="summary"><b>${totalMiles.toFixed(1)} miles</b> · <b>${r.locks} locks</b> · about <b>${fmtEta(totalMins)}</b> cruising — roughly <b>${days} day${days === 1 ? '' : 's'}</b> at ${hpd} hours/day.</div>
+  <h2>Waterways</h2><p>${wlist}</p>
+  <h2>Along the way</h2>
+  <table><tbody>${rows}</tbody></table>
+  <footer>Contains data from OpenStreetMap contributors (ODbL), the Canal &amp; River Trust and the Environment Agency, under their respective open licences. Generated with Canal Map: UK Waterways — free, offline-first canal mapping.</footer>
+</body></html>`;
+}
+
+function printPlan(r) {
+  const el = document.getElementById('hpd');
+  const hpd = Math.min(14, Math.max(1, parseInt((el && el.value) || '6', 10) || 6));
+  const w = window.open('', '_blank');
+  if (!w) { alert('Please allow pop-ups to download the plan.'); return; }
+  w.document.write(planHtml(r, hpd));
+  w.document.close();
+  w.focus();
+  setTimeout(() => { w.print(); }, 500);
+}
+
 // ---- Route-mode UI ----
 let graph = null, graphLoading = false, routeMode = false, rStart = null, rEnd = null, lastRoute = null;
 const rpanel = document.getElementById('rpanel');
@@ -544,6 +689,8 @@ function wire() {
     dl.href = URL.createObjectURL(blob);
     dl.download = `canal-map-route-${new Date().toISOString().slice(0, 10)}.gpx`;
   }
+  const pl = document.getElementById('rplan');
+  if (pl && lastRoute) pl.onclick = () => printPlan(lastRoute);
 }
 
 function clearRoute() {
@@ -582,7 +729,9 @@ map.on('click', (e) => {
       `<span class="stat"><b>${(r.metres / 1609.34).toFixed(1)}</b><span>mi</span></span>` +
       `<span class="stat"><b>${r.locks}</b><span>locks</span></span>` +
       `<span class="stat"><b>${fmtEta(r.mins)}</b><span>approx</span></span>` +
-      `<a class="dl" id="rdl">Download GPX</a>` +
+      `<label class="hpd">hrs/day <input id="hpd" type="number" min="1" max="14" value="6"></label>` +
+      `<button id="rplan">Plan (PDF)</button>` +
+      `<a class="dl" id="rdl">GPX</a>` +
       `<button class="ghost" id="rx">Clear</button>`);
     wire();
   }, 20);
