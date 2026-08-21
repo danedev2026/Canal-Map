@@ -102,8 +102,11 @@
   <button id="sat" class="tbtn" title="Toggle aerial imagery">
     <span class="material-icons">satellite</span><span class="label">Satellite</span>
   </button>
+  <a class="about" href="stoppages.html" title="Stoppages &amp; notices">
+    <span class="material-icons">warning_amber</span><span class="label">Stoppages</span>
+  </a>
   <a class="about" href="index.html" title="About &amp; download">
-    <span class="material-icons">arrow_back</span><span class="label">About &amp; download</span>
+    <span class="material-icons">arrow_back</span><span class="label">About</span>
   </a>
 </div>
 
@@ -159,6 +162,7 @@ function legendIcon(glyph, color) {
 // holes, or a notice severity to remove it from the map (and from the PDF plan).
 const hiddenTypes = new Set();   // facility types hidden
 const hiddenStates = new Set();  // stoppage severities hidden
+let hidePlanned = true;          // future/planned notices hidden by default
 const STOP_LABEL = { closed: 'Closures', restricted: 'Restrictions', advisory: 'Advisories' };
 
 const legendRows = document.getElementById('legend-rows');
@@ -185,6 +189,12 @@ for (const s in STOP) {
     legendIcon('warning', STOP[s]) + `<span>${STOP_LABEL[s]}</span>`;
   legendNotices.appendChild(row);
 }
+// Planned / future notices are hidden by default; this reveals them.
+const plRow = document.createElement('label');
+plRow.className = 'row';
+plRow.innerHTML = `<input type="checkbox" data-planned>` +
+  legendIcon('schedule', '#607d8b') + `<span>Planned / future</span>`;
+legendNotices.appendChild(plRow);
 
 document.getElementById('legend').addEventListener('change', (e) => {
   const t = e.target;
@@ -197,6 +207,9 @@ document.getElementById('legend').addEventListener('change', (e) => {
     applyFeatureFilter();
   } else if (state) {
     if (t.checked) hiddenStates.delete(state); else hiddenStates.add(state);
+    applyStoppageFilter();
+  } else if (t.hasAttribute('data-planned')) {
+    hidePlanned = !t.checked;
     applyStoppageFilter();
   } else if (layer && map.getLayer(layer)) {
     map.setLayoutProperty(layer, 'visibility', t.checked ? 'visible' : 'none');
@@ -213,9 +226,10 @@ function applyFeatureFilter() {
 
 function applyStoppageFilter() {
   if (!map.getLayer('stoppages')) return;
-  map.setFilter('stoppages', hiddenStates.size
-    ? ['!', ['in', ['get', 'state'], ['literal', [...hiddenStates]]]]
-    : null);
+  const conds = [];
+  if (hiddenStates.size) conds.push(['!', ['in', ['get', 'state'], ['literal', [...hiddenStates]]]]);
+  if (hidePlanned) conds.push(['!=', ['get', 'future'], true]);
+  map.setFilter('stoppages', conds.length ? ['all', ...conds] : null);
 }
 
 // A rendered marker: a white disc + coloured ring + a centred Material glyph —
@@ -260,12 +274,18 @@ function markerImage(glyph, color, px = 88) {
 const protocol = new pmtiles.Protocol();
 maplibregl.addProtocol('pmtiles', protocol.tile);
 
+// Optional deep-link: stoppages.html "Show on map" passes ?lat=&lng=&z=.
+const params = new URLSearchParams(location.search);
+const plat = parseFloat(params.get('lat')), plng = parseFloat(params.get('lng'));
+const pz = parseFloat(params.get('z'));
+const deep = isFinite(plat) && isFinite(plng);
+
 const map = new maplibregl.Map({
   container: 'map',
   attributionControl: false, // added compact below so it doesn't sprawl
   preserveDrawingBuffer: true, // lets us snapshot the route map into the PDF
-  center: [-1.90, 52.48], // Birmingham — the canal heartland
-  zoom: 8,
+  center: deep ? [plng, plat] : [-1.90, 52.48], // Birmingham — the canal heartland
+  zoom: deep ? (isFinite(pz) ? pz : 14) : 8,
   maxZoom: 16,
   style: {
     version: 8,
@@ -445,7 +465,7 @@ map.on('load', async () => {
     const feats = items.filter(s => s.lat && s.lon).map(s => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
-      properties: s,
+      properties: Object.assign({}, s, { future: Date.parse(s.start) > Date.now() }),
     }));
     map.addSource('stoppages', { type: 'geojson', data: { type: 'FeatureCollection', features: feats } });
     map.addLayer({
@@ -456,6 +476,7 @@ map.on('load', async () => {
         'icon-allow-overlap': true,
       },
     });
+    applyStoppageFilter(); // hide planned/future by default
     map.on('click', 'stoppages', (e) => {
       if (routeMode) return;
       const p = e.features[0].properties;
@@ -469,9 +490,10 @@ map.on('load', async () => {
     });
     map.on('mouseenter', 'stoppages', () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', 'stoppages', () => map.getCanvas().style.cursor = '');
+    const current = feats.filter(f => !f.properties.future).length;
     const b = document.getElementById('banner');
     b.style.display = 'block';
-    b.textContent = `⚠ ${feats.length} live stoppage${feats.length === 1 ? '' : 's'} & notices`;
+    b.textContent = `⚠ ${current} live stoppage${current === 1 ? '' : 's'} & notices`;
   }).catch(() => {});
 });
 

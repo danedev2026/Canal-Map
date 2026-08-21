@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stoppages &amp; notices — Canal Map: UK Waterways</title>
+<meta name="description" content="Live Canal &amp; River Trust stoppages, closures, restrictions and advisories on the UK canal network — searchable and filterable.">
+<meta name="theme-color" content="#16302b">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2316302b'/%3E%3Cg fill='none' stroke='%23d9a62a' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9,17 16,11 23,17'/%3E%3Cpolyline points='9,23 16,17 23,23'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--green:#16302b;--gold:#d9a62a;--ink:#1f2a28;--mute:#5c6b66;--line:#e7ece9;--soft:#f4f7f6;
+    --closed:#d32f2f;--restricted:#f9a825;--advisory:#1976d2;}
+  *{box-sizing:border-box;}
+  body{margin:0;color:var(--ink);background:#fafbfb;line-height:1.5;
+    font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  h1,.brand{font-family:Poppins,-apple-system,Segoe UI,Roboto,sans-serif;}
+  a{color:#2a6fb0;}
+  nav{position:sticky;top:0;z-index:10;background:var(--green);color:#fff;}
+  nav .in{max-width:900px;margin:0 auto;display:flex;align-items:center;gap:12px;height:56px;padding:0 16px;}
+  nav .brand{font-weight:700;font-size:16px;display:flex;align-items:center;gap:9px;}
+  nav .brand .gate{width:21px;height:21px;}
+  nav .sp{margin-left:auto;}
+  nav a.nl{color:#cfe0dc;text-decoration:none;font-size:14px;margin-left:16px;}
+  nav a.nl:hover{color:#fff;}
+  .wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px;}
+  h1{font-size:24px;margin:14px 0 2px;color:var(--green);}
+  .fresh{color:var(--mute);font-size:13px;margin-bottom:16px;}
+  .controls{position:sticky;top:56px;background:#fafbfb;padding:10px 0 8px;z-index:5;}
+  #q{width:100%;padding:11px 14px;border:1px solid #ccd4d1;border-radius:24px;font-size:15px;}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .chip{border:1px solid #ccd4d1;background:#fff;border-radius:18px;padding:6px 13px;font-size:13px;
+    cursor:pointer;color:#3a4a45;}
+  .chip.on{background:var(--green);color:#fff;border-color:var(--green);}
+  .toggle{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;color:#3a4a45;
+    margin-top:11px;cursor:pointer;}
+  .toggle input{accent-color:var(--green);}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;
+    display:flex;overflow:hidden;}
+  .card .stripe{width:6px;flex:none;}
+  .card .body{padding:12px 14px;flex:1;min-width:0;}
+  .card .kind{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+    display:flex;align-items:center;gap:6px;}
+  .card .planned{background:var(--soft);color:#556;border-radius:6px;padding:1px 6px;font-size:10px;
+    font-weight:700;letter-spacing:.3px;}
+  .card h3{margin:5px 0 2px;font-size:16px;font-family:inherit;}
+  .card .ww{color:var(--mute);font-size:13.5px;}
+  .card .dates{color:#8a938f;font-size:12.5px;margin-top:2px;}
+  .card details{margin-top:6px;}
+  .card summary{color:#2a6fb0;font-size:13px;cursor:pointer;}
+  .card .reason{font-size:13.5px;color:#3a4a45;margin-top:6px;}
+  .card .onmap{display:inline-block;margin-top:8px;font-size:13px;text-decoration:none;color:#2a6fb0;}
+  .empty{text-align:center;color:var(--mute);padding:50px 20px;}
+  .count{color:var(--mute);font-size:13px;margin:2px 0 10px;}
+</style>
+</head>
+<body>
+<nav>
+  <div class="in">
+    <span class="brand">
+      <svg class="gate" viewBox="0 0 24 24" fill="none" stroke="#d9a62a" stroke-width="2.4"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="6,12.5 12,7.5 18,12.5"/><polyline points="6,17 12,12 18,17"/></svg>
+      Canal Map
+    </span>
+    <span class="sp"></span>
+    <a class="nl" href="map.html">Live map</a>
+    <a class="nl" href="index.html">About</a>
+  </div>
+</nav>
+
+<div class="wrap">
+  <h1>Stoppages &amp; notices</h1>
+  <div class="fresh" id="fresh">Loading live notices…</div>
+
+  <div class="controls">
+    <input id="q" type="text" placeholder="Search waterway, title or reason…" autocomplete="off">
+    <div class="chips" id="chips">
+      <span class="chip on" data-f="all">All</span>
+      <span class="chip" data-f="closed">Closures</span>
+      <span class="chip" data-f="restricted">Restrictions</span>
+      <span class="chip" data-f="advisory">Advisories</span>
+    </div>
+    <label class="toggle"><input type="checkbox" id="planned"> Show planned / future notices</label>
+  </div>
+
+  <div class="count" id="count"></div>
+  <div id="list"></div>
+</div>
+
+<script>
+const STOPPAGES_URL =
+  'https://raw.githubusercontent.com/danedev2026/Canal-Map/main/data/stoppages.json';
+const META = {
+  closed:      { c:'#d32f2f', label:'Closure' },
+  restricted:  { c:'#f9a825', label:'Restriction' },
+  advisory:    { c:'#1976d2', label:'Advisory' },
+};
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+let all = [], query = '', filter = 'all', showPlanned = false;
+
+// Base set respects the planned/future toggle (future hidden by default).
+function baseSet(){ return showPlanned ? all : all.filter(s => !isFuture(s)); }
+
+function updateCounts(){
+  const base = baseSet(), c = { closed:0, restricted:0, advisory:0 };
+  base.forEach(s => { if (c[s.state] != null) c[s.state]++; });
+  document.querySelector('[data-f="all"]').textContent = `All (${base.length})`;
+  document.querySelector('[data-f="closed"]').textContent = `Closures (${c.closed})`;
+  document.querySelector('[data-f="restricted"]').textContent = `Restrictions (${c.restricted})`;
+  document.querySelector('[data-f="advisory"]').textContent = `Advisories (${c.advisory})`;
+}
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function meta(s){ return META[s] || { c:'#d32f2f', label:'Notice' }; }
+function isFuture(s){ const d = Date.parse(s.start); return !isNaN(d) && d > Date.now(); }
+function fmtDate(iso){ const d = new Date(iso); if (isNaN(d)) return (iso||'').slice(0,10);
+  return `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`; }
+function dates(s){ return [s.start,s.end].filter(Boolean).map(fmtDate).join(' → '); }
+
+function sevRank(st){ return st==='closed'?0:st==='restricted'?1:2; }
+
+function render(){
+  const q = query.trim().toLowerCase();
+  let items = baseSet().filter(s => {
+    if (filter !== 'all' && s.state !== filter) return false;
+    if (!q) return true;
+    return (s.title||'').toLowerCase().includes(q) ||
+           (s.waterway||'').toLowerCase().includes(q) ||
+           (s.reason||'').toLowerCase().includes(q);
+  });
+  items.sort((a,b) => {
+    const fa = isFuture(a)?1:0, fb = isFuture(b)?1:0;
+    if (fa!==fb) return fa-fb;
+    const sa = sevRank(a.state), sb = sevRank(b.state);
+    if (sa!==sb) return sa-sb;
+    return (a.waterway||'').localeCompare(b.waterway||'');
+  });
+
+  document.getElementById('count').textContent =
+    `${items.length} notice${items.length===1?'':'s'}${filter==='all'?'':' shown'}`;
+
+  const list = document.getElementById('list');
+  if (!items.length){ list.innerHTML = '<div class="empty">No matching notices.</div>'; return; }
+  list.innerHTML = items.map(s => {
+    const m = meta(s.state), d = dates(s), fut = isFuture(s);
+    const onmap = (s.lat && s.lon)
+      ? `<a class="onmap" href="map.html?lat=${s.lat}&lng=${s.lon}&z=14">Show on map →</a>` : '';
+    return `<div class="card"><div class="stripe" style="background:${m.c}"></div>
+      <div class="body">
+        <div class="kind" style="color:${m.c}">⚠ ${esc(m.label)}
+          ${fut?'<span class="planned">PLANNED</span>':''}</div>
+        <h3>${esc(s.title||'Notice')}</h3>
+        ${s.waterway?`<div class="ww">${esc(s.waterway)}</div>`:''}
+        ${d?`<div class="dates">${esc(d)}</div>`:''}
+        ${s.reason?`<details><summary>Details</summary><div class="reason">${esc(s.reason)}</div></details>`:''}
+        ${onmap}
+      </div></div>`;
+  }).join('');
+}
+
+document.getElementById('q').addEventListener('input', e => { query = e.target.value; render(); });
+document.getElementById('chips').addEventListener('click', e => {
+  const chip = e.target.closest('.chip'); if (!chip) return;
+  filter = chip.getAttribute('data-f');
+  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === chip));
+  render();
+});
+document.getElementById('planned').addEventListener('change', e => {
+  showPlanned = e.target.checked; updateCounts(); render();
+});
+
+fetch(STOPPAGES_URL).then(r => r.json()).then(doc => {
+  all = (doc.stoppages || []);
+  const current = all.filter(s => !isFuture(s)).length;
+  updateCounts();
+  const upd = doc.updated ? new Date(doc.updated) : null;
+  document.getElementById('fresh').textContent = upd && !isNaN(upd)
+    ? `${current} current notices · updated ${fmtDate(doc.updated)}`
+    : `${current} current notices`;
+  render();
+}).catch(() => {
+  document.getElementById('fresh').textContent = 'Could not load live notices — please try again later.';
+});
+</script>
+</body>
+</html>
