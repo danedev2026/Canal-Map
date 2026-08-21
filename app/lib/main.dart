@@ -17,6 +17,7 @@ import 'boat_log_screen.dart';
 import 'exporter.dart';
 import 'popular_routes.dart';
 import 'popular_routes_screen.dart';
+import 'route_plan_pdf.dart';
 import 'routing.dart';
 import 'saved_routes.dart';
 import 'saved_routes_screen.dart';
@@ -40,7 +41,9 @@ class PoiType {
 }
 
 const Map<String, PoiType> kPoiTypes = {
-  'lock': PoiType('Lock', Color(0xFFC0392B), Icons.lock),
+  // Lock is drawn as a charcoal lock-gate chevron (see _renderLockIcon /
+  // _GateIcon), not this padlock glyph — the colour here is the brand charcoal.
+  'lock': PoiType('Lock', Color(0xFF37474F), Icons.lock),
   'water_point': PoiType('Water point', Color(0xFF2980B9), Icons.water_drop),
   'sanitary': PoiType('Elsan / sanitary', Color(0xFF27AE60), Icons.wc),
   'pumpout': PoiType('Pump-out', Color(0xFF8E44AD), Icons.plumbing),
@@ -113,14 +116,25 @@ class _MapScreenState extends State<MapScreen> {
   String? _stoppagesFreshness;
   bool _showPlanned = false; // future/winter stoppages hidden by default
 
-  /// Stoppages to draw: by default only those already in effect; with the
-  /// toggle on, also future/planned ones (e.g. winter works).
+  // Layer toggles (the "Map layers" sheet).
+  final Set<String> _hiddenTypes = {};   // facility types hidden
+  final Set<String> _hiddenStates = {};  // stoppage severities hidden
+  bool _showWinding = true;              // winding-hole overlay
+
+  // Multi-day planning: cruising hours per day (drives day markers + the plan).
+  int _hoursPerDay = 6;
+
+  /// Stoppages to draw: current ones by default (planned/future only with the
+  /// toggle), minus any severities hidden in the layers sheet.
   List<Stoppage> get _visibleStoppages {
-    if (_showPlanned) return _stoppages;
     final now = DateTime.now();
     return _stoppages.where((s) {
-      final start = DateTime.tryParse(s.start);
-      return start == null || !start.isAfter(now);
+      if (_hiddenStates.contains(s.state)) return false;
+      if (!_showPlanned) {
+        final start = DateTime.tryParse(s.start);
+        if (start != null && start.isAfter(now)) return false;
+      }
+      return true;
     }).toList();
   }
 
@@ -382,8 +396,6 @@ class _MapScreenState extends State<MapScreen> {
     switch (v) {
       case 'satellite':
         _toggleSatellite();
-      case 'planned':
-        _togglePlanned();
       case 'log':
         _logMyPosition();
       case 'logbook':
@@ -405,20 +417,6 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  Future<void> _togglePlanned() async {
-    setState(() => _showPlanned = !_showPlanned);
-    await _controller?.setGeoJsonSource(
-        _stoppagesSourceId, _stoppagesFc(_visibleStoppages));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        duration: const Duration(seconds: 2),
-        content: Text(_showPlanned
-            ? 'Showing planned/future stoppages too'
-            : 'Showing current stoppages only'),
-      ));
-    }
-  }
-
   /// Runs once the map style is ready: load stoppages (network → cache →
   /// bundle) and draw them as an overlay. Never blocks the map.
   Future<void> _onStyleLoaded() async {
@@ -437,6 +435,7 @@ class _MapScreenState extends State<MapScreen> {
 
     await _addSatellite(controller);
     await _addPoiLayer(controller);
+    await _addWindingLayer(controller);
     await controller.addGeoJsonSource(
         _stoppagesSourceId, _stoppagesFc(_visibleStoppages));
     await _addStoppageLayer(controller);
@@ -467,12 +466,14 @@ class _MapScreenState extends State<MapScreen> {
       ),
       enableInteraction: false,
     );
+    await _addDayMarkerLayers(controller);
 
     // A style reload (e.g. switching light/dark) wipes runtime layers, so
-    // restore whatever the user had on: a drawn route and its end markers.
+    // restore whatever the user had on: a drawn route, its ends + day markers.
     if (_route != null) {
       await controller.setGeoJsonSource('route', _routeLineFc(_route!));
       await _drawRouteEnds();
+      await _drawDayMarkers(_route!);
     }
   }
 
@@ -548,13 +549,53 @@ class _MapScreenState extends State<MapScreen> {
     return data!.buffer.asUint8List();
   }
 
+  /// The lock marker: a white disc + coloured ring + two gate chevrons (the
+  /// motif from the app icon) — reads as a canal lock, not a padlock.
+  Future<Uint8List> _renderLockIcon(Color color, {int px = 88}) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final c = px / 2.0;
+    canvas.drawCircle(Offset(c, c), c - 4, Paint()..color = Colors.white);
+    canvas.drawCircle(
+      Offset(c, c), c - 4,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = px * 0.06,
+    );
+    final gate = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = px * 0.075
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final w = px * 0.22, h = px * 0.12;
+    for (final cy in [c - px * 0.10, c + px * 0.14]) {
+      canvas.drawPath(
+        Path()
+          ..moveTo(c - w, cy + h)
+          ..lineTo(c, cy - h)
+          ..lineTo(c + w, cy + h),
+        gate,
+      );
+    }
+    final img = await recorder.endRecording().toImage(px, px);
+    final data = await img.toByteData(format: ui.ImageByteFormat.png);
+    return data!.buffer.asUint8List();
+  }
+
   /// Register a rendered icon per POI type, then a symbol layer keyed by `type`.
   /// Collision detection (iconAllowOverlap:false) declutters at low zoom.
   Future<void> _addPoiLayer(MapLibreMapController controller) async {
     for (final e in kPoiTypes.entries) {
-      await controller.addImage('poi_${e.key}', await _renderIcon(e.value.icon, e.value.color));
+      final bytes = e.key == 'lock'
+          ? await _renderLockIcon(e.value.color)
+          : await _renderIcon(e.value.icon, e.value.color);
+      await controller.addImage('poi_${e.key}', bytes);
     }
     await controller.addImage('poi_default', await _renderIcon(Icons.place, _defaultPoiColor));
+    await controller.addImage(
+        'poi_winding', await _renderIcon(Icons.refresh, const Color(0xFF3949AB)));
 
     final iconMatch = <dynamic>['match', ['get', 'type']];
     for (final k in kPoiTypes.keys) {
@@ -581,8 +622,9 @@ class _MapScreenState extends State<MapScreen> {
         textHaloWidth: 1.4,
       ),
       sourceLayer: 'features',
-      // Bridges get their own number-label layer below.
-      filter: ['!=', ['get', 'type'], 'bridge'],
+      // Bridges get their own number-label layer below; hidden facility types
+      // (from the layers sheet) are filtered out here too.
+      filter: _featuresFilter(),
       // Let taps fall through to onMapClick — otherwise the plugin swallows
       // them as feature-interactions and taps ON a marker do nothing.
       enableInteraction: false,
@@ -634,6 +676,199 @@ class _MapScreenState extends State<MapScreen> {
         iconIgnorePlacement: false, // ...but still block POI icons
       ),
       enableInteraction: false,
+    );
+  }
+
+  // --- Layer toggles (the "Map layers" sheet) -------------------------------
+
+  /// Features-layer filter: never show bridges here, and drop any facility types
+  /// the user has hidden.
+  List<dynamic> _featuresFilter() {
+    final base = <dynamic>['!=', ['get', 'type'], 'bridge'];
+    if (_hiddenTypes.isEmpty) return base;
+    return [
+      'all', base,
+      ['!', ['in', ['get', 'type'], ['literal', _hiddenTypes.toList()]]],
+    ];
+  }
+
+  Future<void> _applyFeatureFilter() async =>
+      _controller?.setFilter(_featuresLayerId, _featuresFilter());
+
+  /// Rebuild the stoppages overlay from the currently-visible set (respects the
+  /// planned toggle + hidden severities).
+  Future<void> _refreshStoppages() async => _controller?.setGeoJsonSource(
+      _stoppagesSourceId, _stoppagesFc(_visibleStoppages));
+
+  List<LatLng> _windingPts = const [];
+
+  /// Winding holes (turning points) — a bundled overlay, toggleable.
+  Future<void> _addWindingLayer(MapLibreMapController controller) async {
+    try {
+      final raw = await rootBundle.loadString('assets/winding_holes.json');
+      final pts = (jsonDecode(raw) as List).cast<List>();
+      _windingPts = [
+        for (final p in pts) LatLng((p[1] as num).toDouble(), (p[0] as num).toDouble()),
+      ];
+      await controller.addGeoJsonSource('winding', {
+        'type': 'FeatureCollection',
+        'features': [
+          for (final p in pts)
+            {
+              'type': 'Feature',
+              'geometry': {'type': 'Point', 'coordinates': [
+                (p[0] as num).toDouble(), (p[1] as num).toDouble()]},
+              'properties': const {'winding': 1},
+            }
+        ],
+      });
+      await controller.addSymbolLayer(
+        'winding', 'winding-layer',
+        SymbolLayerProperties(
+          iconImage: 'poi_winding',
+          iconSize: ['interpolate', ['linear'], ['zoom'], 8, 0.45, 13, 0.72, 16, 0.95],
+          iconAllowOverlap: false,
+        ),
+        enableInteraction: false,
+      );
+      await controller.setLayerVisibility('winding-layer', _showWinding);
+    } catch (_) {/* overlay is optional */}
+  }
+
+  /// Numbered pills at each overnight boundary of a multi-day route.
+  Future<void> _addDayMarkerLayers(MapLibreMapController controller) async {
+    await controller.addGeoJsonSource('route-days', _emptyFc());
+    await controller.addCircleLayer(
+      'route-days', 'route-days-dot',
+      const CircleLayerProperties(
+        circleRadius: 11.0,
+        circleColor: '#16302b',
+        circleStrokeColor: '#ffffff',
+        circleStrokeWidth: 2.0,
+      ),
+      enableInteraction: false,
+    );
+    await controller.addSymbolLayer(
+      'route-days', 'route-days-num',
+      SymbolLayerProperties(
+        textField: ['get', 'label'],
+        textFont: ['OpenSans-Regular'],
+        textSize: 12.0,
+        textColor: '#ffffff',
+        textAllowOverlap: true,
+        textIgnorePlacement: true,
+      ),
+      enableInteraction: false,
+    );
+  }
+
+  Future<void> _drawDayMarkers(RouteResult r) async {
+    final poly = r.polyline;
+    final totalMins = r.eta.inMinutes;
+    final perDay = _hoursPerDay * 60;
+    final days = totalMins <= 0 ? 1 : math.max(1, (totalMins / perDay).ceil());
+    final feats = <Map<String, dynamic>>[];
+    if (days > 1 && poly.length >= 2) {
+      final cum = List<double>.filled(poly.length, 0);
+      for (var i = 1; i < poly.length; i++) {
+        cum[i] = cum[i - 1] +
+            _haversineMetres(poly[i - 1].latitude, poly[i - 1].longitude,
+                poly[i].latitude, poly[i].longitude);
+      }
+      final total = cum.last <= 0 ? 1.0 : cum.last;
+      for (var k = 1; k < days; k++) {
+        final target = (k * perDay / totalMins) * total;
+        var idx = 0;
+        while (idx < poly.length - 1 && cum[idx] < target) { idx++; }
+        feats.add({
+          'type': 'Feature',
+          'geometry': {'type': 'Point',
+            'coordinates': [poly[idx].longitude, poly[idx].latitude]},
+          'properties': {'label': '${k + 1}'},
+        });
+      }
+    }
+    await _controller?.setGeoJsonSource(
+        'route-days', {'type': 'FeatureCollection', 'features': feats});
+  }
+
+  /// The "Map layers" bottom sheet: show/hide facilities, notice severities and
+  /// winding holes.
+  void _openLayersSheet() {
+    const stateLabels = {
+      'closed': 'Closures', 'restricted': 'Restrictions', 'advisory': 'Advisories'
+    };
+    const stateColors = {
+      'closed': Color(0xFFD32F2F), 'restricted': Color(0xFFF9A825), 'advisory': Color(0xFF1976D2)
+    };
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                child: Text('Map layers', style: Theme.of(ctx).textTheme.titleMedium),
+              ),
+              for (final e in kPoiTypes.entries)
+                CheckboxListTile(
+                  dense: true,
+                  value: !_hiddenTypes.contains(e.key),
+                  secondary: _poiIcon(e.key, e.value.color, 20),
+                  title: Text(e.value.label),
+                  onChanged: (v) {
+                    setSheet(() {
+                      if (v == false) { _hiddenTypes.add(e.key); } else { _hiddenTypes.remove(e.key); }
+                    });
+                    _applyFeatureFilter();
+                  },
+                ),
+              CheckboxListTile(
+                dense: true,
+                value: _showWinding,
+                secondary: const Icon(Icons.refresh, color: Color(0xFF3949AB), size: 20),
+                title: const Text('Winding hole'),
+                onChanged: (v) {
+                  setSheet(() => _showWinding = v ?? true);
+                  _controller?.setLayerVisibility('winding-layer', _showWinding);
+                },
+              ),
+              const Divider(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                child: Text('Notices', style: Theme.of(ctx).textTheme.labelLarge),
+              ),
+              for (final s in stateLabels.entries)
+                CheckboxListTile(
+                  dense: true,
+                  value: !_hiddenStates.contains(s.key),
+                  secondary: Icon(Icons.warning_amber_rounded, color: stateColors[s.key], size: 20),
+                  title: Text(s.value),
+                  onChanged: (v) {
+                    setSheet(() {
+                      if (v == false) { _hiddenStates.add(s.key); } else { _hiddenStates.remove(s.key); }
+                    });
+                    _refreshStoppages();
+                  },
+                ),
+              CheckboxListTile(
+                dense: true,
+                value: _showPlanned,
+                secondary: const Icon(Icons.schedule, color: Color(0xFF607D8B), size: 20),
+                title: const Text('Planned / future'),
+                onChanged: (v) {
+                  setSheet(() => _showPlanned = v ?? false);
+                  _refreshStoppages();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -700,6 +935,7 @@ class _MapScreenState extends State<MapScreen> {
     });
     await _controller?.setGeoJsonSource('route', _emptyFc());
     await _controller?.setGeoJsonSource('route-ends', _emptyFc());
+    await _controller?.setGeoJsonSource('route-days', _emptyFc());
   }
 
   Future<void> _handleRouteTap(LatLng p) async {
@@ -753,6 +989,7 @@ class _MapScreenState extends State<MapScreen> {
               }
             ],
     });
+    if (result != null) await _drawDayMarkers(result);
   }
 
   Future<void> _exportRoute() async {
@@ -897,6 +1134,7 @@ class _MapScreenState extends State<MapScreen> {
     });
     await _controller?.setGeoJsonSource('route', _routeLineFc(r));
     await _drawRouteEnds();
+    await _drawDayMarkers(r);
     final b = _routeBounds(r.polyline);
     await _controller?.animateCamera(CameraUpdate.newLatLngBounds(b,
         left: 40, right: 40, top: 80, bottom: 160));
@@ -915,22 +1153,21 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// A fuller journey plan: figures, the waterways you travel and the
-  /// facilities you pass in order, plus save/share.
+  /// facilities you pass grouped by day, plus save / GPX / PDF.
   void _showRouteDetails() {
     final r = _route;
     if (r == null) return;
     final h = r.eta.inHours, m = r.eta.inMinutes % 60;
     final eta = h > 0 ? '${h}h ${m}m' : '${m}m';
+    final totalMins = r.eta.inMinutes, totalMiles = r.miles;
 
     final itinerary = _routeItinerary(r.polyline);
-    // Distinct waterways in order (dedupe repeats).
     final waterways = <String>[];
     for (final it in itinerary.where((i) => i.entry.type == 'waterway')) {
       if (waterways.isEmpty || waterways.last != it.entry.name) {
         waterways.add(it.entry.name);
       }
     }
-    // Facilities you pass, in order.
     final facilities =
         itinerary.where((i) => kPoiTypes.containsKey(i.entry.type)).toList();
 
@@ -938,84 +1175,268 @@ class _MapScreenState extends State<MapScreen> {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.6,
-        maxChildSize: 0.92,
-        builder: (ctx, scroll) => ListView(
-          controller: scroll,
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-          children: [
-            Text('Journey plan', style: Theme.of(ctx).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            _planRow(ctx, Icons.straighten, 'Distance',
-                '${r.miles.toStringAsFixed(1)} mi (${(r.metres / 1000).toStringAsFixed(1)} km)'),
-            _planRow(ctx, Icons.lock, 'Locks', '${r.locks}'),
-            _planRow(ctx, Icons.schedule, 'Estimated time',
-                '$eta  (≈3 mph + ${_minsPerLockLabel()}/lock)'),
-            const SizedBox(height: 12),
-            Row(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final perDay = _hoursPerDay * 60;
+          final days = totalMins <= 0 ? 1 : math.max(1, (totalMins / perDay).ceil());
+          int dayOf(double miles) {
+            if (totalMiles <= 0 || totalMins <= 0) return 1;
+            return ((miles / totalMiles) * totalMins / perDay).floor().clamp(0, days - 1) + 1;
+          }
+
+          // Along-the-way list with day headers.
+          final along = <Widget>[];
+          var cur = 0;
+          for (final it in facilities) {
+            final d = dayOf(it.miles);
+            if (d != cur) {
+              cur = d;
+              along.add(Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 2),
+                child: Text('Day $d',
+                    style: Theme.of(ctx).textTheme.labelLarge
+                        ?.copyWith(color: Theme.of(ctx).colorScheme.primary)),
+              ));
+            }
+            final meta = kPoiTypes[it.entry.type]!;
+            along.add(ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              leading: _poiIcon(it.entry.type, meta.color, 22),
+              title: Text(it.entry.name.isEmpty ? meta.label : it.entry.name),
+              subtitle: Text(meta.label),
+              trailing: Text('${it.miles.toStringAsFixed(1)} mi',
+                  style: Theme.of(ctx).textTheme.bodySmall),
+            ));
+          }
+
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.62,
+            maxChildSize: 0.92,
+            builder: (ctx, scroll) => ListView(
+              controller: scroll,
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
               children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    icon: const Icon(Icons.bookmark_add_outlined, size: 18),
-                    label: const Text('Save route'),
+                Text('Journey plan', style: Theme.of(ctx).textTheme.titleLarge),
+                const SizedBox(height: 16),
+                _planRow(ctx, Icons.straighten, 'Distance',
+                    '${r.miles.toStringAsFixed(1)} mi (${(r.metres / 1000).toStringAsFixed(1)} km)'),
+                _planRow(ctx, Icons.lock, 'Locks', '${r.locks}'),
+                _planRow(ctx, Icons.schedule, 'Estimated time',
+                    '$eta  (≈3 mph + 10 min/lock)'),
+                // Hours-per-day stepper → drives day splits + the map's day pills.
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(children: [
+                    Icon(Icons.event, size: 20, color: Theme.of(ctx).hintColor),
+                    const SizedBox(width: 12),
+                    Text('Per day:  ', style: Theme.of(ctx).textTheme.bodyMedium),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.remove_circle_outline),
+                      onPressed: _hoursPerDay <= 1 ? null : () {
+                        setSheet(() => _hoursPerDay--);
+                        _drawDayMarkers(r);
+                      },
+                    ),
+                    Text('$_hoursPerDay h',
+                        style: Theme.of(ctx).textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.add_circle_outline),
+                      onPressed: _hoursPerDay >= 14 ? null : () {
+                        setSheet(() => _hoursPerDay++);
+                        _drawDayMarkers(r);
+                      },
+                    ),
+                    const Spacer(),
+                    Text('≈ $days day${days == 1 ? '' : 's'}',
+                        style: Theme.of(ctx).textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.bookmark_add_outlined, size: 18),
+                      label: const Text('Save'),
+                      onPressed: () { Navigator.pop(ctx); _saveCurrentRoute(); },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.tonalIcon(
+                      icon: const Icon(Icons.ios_share, size: 18),
+                      label: const Text('GPX'),
+                      onPressed: () { Navigator.pop(ctx); _exportRoute(); },
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                    label: const Text('Download plan (PDF)'),
                     onPressed: () {
                       Navigator.pop(ctx);
-                      _saveCurrentRoute();
+                      _exportPdfPlan(r, facilities, waterways);
                     },
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton.tonalIcon(
-                    icon: const Icon(Icons.ios_share, size: 18),
-                    label: const Text('Export (GPX)'),
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _exportRoute();
-                    },
-                  ),
-                ),
+                if (waterways.isNotEmpty) ...[
+                  const Divider(height: 32),
+                  Text('Waterways', style: Theme.of(ctx).textTheme.titleMedium),
+                  const SizedBox(height: 6),
+                  Text(waterways.join('  →  '),
+                      style: Theme.of(ctx).textTheme.bodyMedium),
+                ],
+                const Divider(height: 32),
+                Text('Along the way (${facilities.length})',
+                    style: Theme.of(ctx).textTheme.titleMedium),
+                if (facilities.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text('No mapped facilities within 300 m of this route.',
+                        style: Theme.of(ctx).textTheme.bodySmall),
+                  )
+                else
+                  ...along,
+                const SizedBox(height: 8),
+                Text('Estimate only — check conditions and notices before you set off.',
+                    style: Theme.of(ctx).textTheme.bodySmall),
               ],
             ),
-            if (waterways.isNotEmpty) ...[
-              const Divider(height: 32),
-              Text('Waterways', style: Theme.of(ctx).textTheme.titleMedium),
-              const SizedBox(height: 6),
-              Text(waterways.join('  →  '),
-                  style: Theme.of(ctx).textTheme.bodyMedium),
-            ],
-            const Divider(height: 32),
-            Text('Along the way (${facilities.length})',
-                style: Theme.of(ctx).textTheme.titleMedium),
-            const SizedBox(height: 4),
-            if (facilities.isEmpty)
-              Text('No mapped facilities within 300 m of this route.',
-                  style: Theme.of(ctx).textTheme.bodySmall)
-            else
-              ...facilities.map((it) {
-                final meta = kPoiTypes[it.entry.type]!;
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  leading: Icon(meta.icon, color: meta.color, size: 22),
-                  title: Text(it.entry.name.isEmpty ? meta.label : it.entry.name),
-                  subtitle: Text(meta.label),
-                  trailing: Text('${it.miles.toStringAsFixed(1)} mi',
-                      style: Theme.of(ctx).textTheme.bodySmall),
-                );
-              }),
-            const SizedBox(height: 8),
-            Text('Estimate only — check conditions and notices before you set off.',
-                style: Theme.of(ctx).textTheme.bodySmall),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
-  String _minsPerLockLabel() => '10 min';
+  /// Build the branded PDF plan (with a schematic route map) and share it.
+  Future<void> _exportPdfPlan(
+      RouteResult r,
+      List<({SearchEntry entry, double miles})> facilities,
+      List<String> waterways) async {
+    final totalMins = r.eta.inMinutes, totalMiles = r.miles;
+    final perDay = _hoursPerDay * 60;
+    final days = totalMins <= 0 ? 1 : math.max(1, (totalMins / perDay).ceil());
+    int dayOf(double miles) {
+      if (totalMiles <= 0 || totalMins <= 0) return 1;
+      return ((miles / totalMiles) * totalMins / perDay).floor().clamp(0, days - 1) + 1;
+    }
+
+    final planFacs = [
+      for (final it in facilities)
+        PlanFacility(
+          kPoiTypes[it.entry.type]!.label,
+          it.entry.name.isEmpty ? kPoiTypes[it.entry.type]!.label : it.entry.name,
+          it.miles,
+          dayOf(it.miles),
+        )
+    ];
+    Uint8List? img;
+    try { img = await _renderRouteSchematic(r); } catch (_) {}
+    await sharePlanPdf(
+      miles: r.miles,
+      locks: r.locks,
+      etaMinutes: r.eta.inMinutes,
+      hoursPerDay: _hoursPerDay,
+      days: days,
+      waterways: waterways,
+      facilities: planFacs,
+      routeImage: img,
+    );
+  }
+
+  /// A clean schematic of the route (polyline + start/end + day pills) drawn to
+  /// a PNG, for the PDF. Reliable + offline (no map snapshot needed).
+  Future<Uint8List> _renderRouteSchematic(RouteResult r,
+      {int w = 1000, int h = 620}) async {
+    final poly = r.polyline;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawRect(Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+        Paint()..color = const Color(0xFFEEF3F6));
+    if (poly.length >= 2) {
+      var minLa = 90.0, maxLa = -90.0, minLo = 180.0, maxLo = -180.0;
+      for (final p in poly) {
+        minLa = math.min(minLa, p.latitude);
+        maxLa = math.max(maxLa, p.latitude);
+        minLo = math.min(minLo, p.longitude);
+        maxLo = math.max(maxLo, p.longitude);
+      }
+      const pad = 60.0;
+      final midLa = (minLa + maxLa) / 2;
+      final cosLa = math.cos(midLa * math.pi / 180);
+      final geoW = math.max(1e-6, (maxLo - minLo) * cosLa);
+      final geoH = math.max(1e-6, maxLa - minLa);
+      final scale = math.min((w - 2 * pad) / geoW, (h - 2 * pad) / geoH);
+      final offX = (w - geoW * scale) / 2, offY = (h - geoH * scale) / 2;
+      Offset project(LatLng p) => Offset(
+          offX + (p.longitude - minLo) * cosLa * scale,
+          offY + (maxLa - p.latitude) * scale);
+
+      final path = Path();
+      for (var i = 0; i < poly.length; i++) {
+        final o = project(poly[i]);
+        i == 0 ? path.moveTo(o.dx, o.dy) : path.lineTo(o.dx, o.dy);
+      }
+      canvas.drawPath(
+          path,
+          Paint()
+            ..color = const Color(0xFF6A1B9A)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 5
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round);
+
+      void dot(LatLng p, Color col) {
+        final o = project(p);
+        canvas.drawCircle(o, 10, Paint()..color = Colors.white);
+        canvas.drawCircle(o, 10,
+            Paint()..color = col..style = PaintingStyle.stroke..strokeWidth = 4);
+        canvas.drawCircle(o, 6, Paint()..color = col);
+      }
+      dot(poly.first, const Color(0xFF2E7D32));
+      dot(poly.last, const Color(0xFFC62828));
+
+      // Day pills.
+      final totalMins = r.eta.inMinutes, perDay = _hoursPerDay * 60;
+      final days = totalMins <= 0 ? 1 : math.max(1, (totalMins / perDay).ceil());
+      if (days > 1) {
+        final cum = List<double>.filled(poly.length, 0);
+        for (var i = 1; i < poly.length; i++) {
+          cum[i] = cum[i - 1] +
+              _haversineMetres(poly[i - 1].latitude, poly[i - 1].longitude,
+                  poly[i].latitude, poly[i].longitude);
+        }
+        final total = cum.last <= 0 ? 1.0 : cum.last;
+        for (var k = 1; k < days; k++) {
+          final target = (k * perDay / totalMins) * total;
+          var idx = 0;
+          while (idx < poly.length - 1 && cum[idx] < target) { idx++; }
+          final o = project(poly[idx]);
+          canvas.drawCircle(o, 14, Paint()..color = const Color(0xFF16302B));
+          canvas.drawCircle(o, 14,
+              Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2.5);
+          final tp = TextPainter(
+            textDirection: TextDirection.ltr,
+            text: TextSpan(
+                text: '${k + 1}',
+                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          )..layout();
+          tp.paint(canvas, Offset(o.dx - tp.width / 2, o.dy - tp.height / 2));
+        }
+      }
+    }
+    final img = await recorder.endRecording().toImage(w, h);
+    final data = await img.toByteData(format: ui.ImageByteFormat.png);
+    return data!.buffer.asUint8List();
+  }
 
   /// Search-index entries (waterways + facilities) that lie within ~300 m of
   /// the route, ordered by how far along the route they are. Powers the
@@ -1174,7 +1595,7 @@ class _MapScreenState extends State<MapScreen> {
     final thresholdM = 22.0 * metresPerPixel;
     Stoppage? hit;
     var hitDist = double.infinity;
-    for (final s in _stoppages) {
+    for (final s in _visibleStoppages) {
       final d = _haversineMetres(
           latLng.latitude, latLng.longitude, s.lat, s.lon);
       if (d <= thresholdM && d < hitDist) {
@@ -1188,6 +1609,20 @@ class _MapScreenState extends State<MapScreen> {
             Map<String, dynamic>.from(hit.toFeature()['properties'] as Map));
       }
       return;
+    }
+
+    // Winding holes (own runtime overlay — hit-tested in Dart like stoppages).
+    if (_showWinding) {
+      var wd = double.infinity;
+      for (final p in _windingPts) {
+        final d = _haversineMetres(
+            latLng.latitude, latLng.longitude, p.latitude, p.longitude);
+        if (d <= thresholdM && d < wd) wd = d;
+      }
+      if (wd < double.infinity) {
+        if (mounted) _showWindingSheet();
+        return;
+      }
     }
 
     final features = await controller.queryRenderedFeaturesInRect(
@@ -1276,6 +1711,36 @@ class _MapScreenState extends State<MapScreen> {
           ),
         ),
       );
+
+  void _showWindingSheet() {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                const Icon(Icons.refresh, color: Color(0xFF3949AB), size: 20),
+                const SizedBox(width: 8),
+                Text('WINDING HOLE',
+                    style: Theme.of(ctx).textTheme.labelMedium?.copyWith(
+                        color: const Color(0xFF3949AB), fontWeight: FontWeight.bold)),
+              ]),
+              const SizedBox(height: 8),
+              Text('Turning point', style: Theme.of(ctx).textTheme.titleLarge),
+              const SizedBox(height: 6),
+              Text('A wider stretch where you can turn a full-length boat around.',
+                  style: Theme.of(ctx).textTheme.bodyMedium),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _showFeatureSheet(Map<String, dynamic> props, LatLng location) {
     final typeKey = (props['type'] ?? '').toString();
@@ -1434,6 +1899,11 @@ class _MapScreenState extends State<MapScreen> {
             tooltip: 'Search places & waterways',
             onPressed: _searchEntries.isEmpty ? null : _openSearch,
           ),
+          IconButton(
+            icon: const Icon(Icons.layers_outlined),
+            tooltip: 'Map layers',
+            onPressed: _openLayersSheet,
+          ),
           PopupMenuButton<String>(
             tooltip: 'More',
             onSelected: _openMenu,
@@ -1442,11 +1912,6 @@ class _MapScreenState extends State<MapScreen> {
                 value: 'satellite',
                 checked: _satellite,
                 child: const Text('Satellite imagery (needs data)'),
-              ),
-              CheckedPopupMenuItem(
-                value: 'planned',
-                checked: _showPlanned,
-                child: const Text('Show planned/future stoppages'),
               ),
               const PopupMenuDivider(),
               const PopupMenuItem(
@@ -1543,7 +2008,7 @@ class _MapScreenState extends State<MapScreen> {
             trackCameraPosition: true,
             compassEnabled: true,
           ),
-          const SafeArea(child: _Legend()),
+          SafeArea(child: _Legend(onTap: _openLayersSheet)),
           SafeArea(
             child: Align(
               alignment: Alignment.topRight,
@@ -1889,8 +2354,52 @@ class _FreshnessChip extends StatelessWidget {
   }
 }
 
+/// A POI icon widget matching the map markers — the custom lock-gate chevron
+/// for locks, a Material glyph otherwise.
+Widget _poiIcon(String type, Color color, double size) => type == 'lock'
+    ? _GateIcon(color: color, size: size)
+    : Icon(kPoiTypes[type]?.icon ?? Icons.place, color: color, size: size);
+
+/// The lock-gate chevron (the app-icon motif), drawn to any size.
+class _GateIcon extends StatelessWidget {
+  const _GateIcon({required this.color, this.size = 16});
+  final Color color;
+  final double size;
+  @override
+  Widget build(BuildContext context) =>
+      CustomPaint(size: Size(size, size), painter: _GatePainter(color));
+}
+
+class _GatePainter extends CustomPainter {
+  const _GatePainter(this.color);
+  final Color color;
+  @override
+  void paint(Canvas canvas, Size s) {
+    final p = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = s.width * 0.13
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final w = s.width * 0.34, hh = s.height * 0.15, cx = s.width / 2;
+    for (final cy in [s.height * 0.40, s.height * 0.63]) {
+      canvas.drawPath(
+        Path()
+          ..moveTo(cx - w, cy + hh)
+          ..lineTo(cx, cy - hh)
+          ..lineTo(cx + w, cy + hh),
+        p,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_GatePainter old) => old.color != color;
+}
+
 class _Legend extends StatelessWidget {
-  const _Legend();
+  const _Legend({this.onTap});
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1898,41 +2407,63 @@ class _Legend extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       child: Card(
         elevation: 3,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Facilities',
-                  style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(height: 6),
-              for (final e in kPoiTypes.entries)
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('Facilities',
+                      style: Theme.of(context).textTheme.labelMedium),
+                  if (onTap != null) ...[
+                    const SizedBox(width: 6),
+                    Icon(Icons.tune, size: 13, color: Theme.of(context).hintColor),
+                  ],
+                ]),
+                const SizedBox(height: 6),
+                for (final e in kPoiTypes.entries)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _poiIcon(e.key, e.value.color, 15),
+                        const SizedBox(width: 7),
+                        Text(e.value.label,
+                            style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    ),
+                  ),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(e.value.icon, size: 15, color: e.value.color),
+                      const Icon(Icons.refresh, size: 15, color: Color(0xFF3949AB)),
                       const SizedBox(width: 7),
-                      Text(e.value.label,
+                      Text('Winding hole',
                           style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),
                 ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const _DashSwatch(color: Color(0xFFE65100)),
-                    const SizedBox(width: 7),
-                    Text('Tidal — hazard',
-                        style: Theme.of(context).textTheme.bodySmall),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const _DashSwatch(color: Color(0xFFE65100)),
+                      const SizedBox(width: 7),
+                      Text('Tidal — hazard',
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

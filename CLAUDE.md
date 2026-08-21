@@ -38,11 +38,23 @@ runtime fetch is the daily `stoppages.json` (served as a static file from the
 GitHub repo, refreshed by a GitHub Action), with offline fallback. Never add
 anything needing a writable backend (breaks £0).
 
-## Status — through v1.6 COMPLETE (in closed testing)
+## Status — through v1.7 COMPLETE (in closed testing)
 All of PLAN.md plus many refinements, built and verified on a real S10+ and the
 emulator: nationwide offline map, POIs with icons, search + near-me,
 GPS/follow-me, live CRT stoppages, tidal hazards, place/bridge/POI labels, and
 on-device route planning with lockmile ETAs. Later releases added:
+- v1.7 (current, versionCode 10): ported the website's newer features into the
+  app — new charcoal lock-gate chevron marker (replaces the red padlock; drawn,
+  not a Material glyph — see _renderLockIcon/_GateIcon); a "Map layers" sheet
+  (app-bar layers icon) toggling each facility type, winding holes, and each
+  notice severity + planned/future; winding-holes overlay (bundled
+  assets/winding_holes.json, 405 pts); day markers on multi-day routes + an
+  "hrs/day" stepper in the journey plan; day-by-day grouped plan; and a
+  branded PDF route plan (pdf+printing packages, with a drawn schematic route
+  map — PDF text is Latin-1 only so no emoji/arrows/em-dashes).
+- The website (docs/) also gained: redesigned landing page, map viewer with the
+  same lock symbol + layer/severity/winding/planned toggles + day markers +
+  print-to-PDF plan (with a snapshot route map), and a stoppages.html list page.
 - v1.3 moorings, "Route here", boat log + export, planned-stoppages toggle.
 - v1.4 optional online satellite (Esri), detailed journey plan, CSV export.
 - v1.6 (current, versionCode 9): "Stoppages & notices" list screen (search +

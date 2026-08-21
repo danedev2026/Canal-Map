@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # <versionName>+<versionCode>. Play requires versionCode to strictly increase
 # on EVERY upload — bump the +N before each new bundle.
-version: 1.6.0+9
+version: 1.7.0+10
 
 environment:
   sdk: ^3.12.2
@@ -44,6 +44,8 @@ dependencies:
   flutter_file_dialog: ^3.0.2  # native "Save to…" dialog → file lands in Files/Downloads
   url_launcher: ^6.3.1         # open privacy policy + Play Store rating
   shared_preferences: ^2.3.3   # persist theme / colour choice
+  pdf: ^3.11.1                 # build the printable route plan
+  printing: ^5.13.4            # share / save the route plan as a PDF
 
 dev_dependencies:
   flutter_test:
@@ -85,6 +87,7 @@ flutter:
     - assets/stoppages.json
     - assets/routing.graph
     - assets/popular_routes.json
+    - assets/winding_holes.json
     - assets/glyphs/OpenSans-Regular/
 
   # To add assets to your application, add an assets section, like this:
